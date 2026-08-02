@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>微信本地数据库分析报告 - 2026-08-02</title>
+<style>
+  :root {
+    --primary: #07c160;
+    --primary-dark: #06ad56;
+    --bg: #f5f7fa;
+    --card-bg: #ffffff;
+    --text: #1a1a1a;
+    --text-secondary: #666;
+    --border: #e8e8e8;
+    --accent: #576b95;
+    --warning: #fa9d3b;
+    --danger: #e15f63;
+    --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 980px; margin: 0 auto; padding: 0 20px 60px; }
+  .header {
+    background: linear-gradient(135deg, #07c160 0%, #06ad56 100%);
+    color: #fff;
+    padding: 48px 0 40px;
+    border-radius: 0 0 24px 24px;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+  .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 10px; }
+  .header .meta { font-size: 14px; opacity: 0.85; line-height: 2; }
+  .header .meta span { display: inline-block; margin: 0 12px; }
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+  .stat-card {
+    background: var(--card-bg);
+    border-radius: 14px;
+    padding: 22px 18px;
+    text-align: center;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); }
+  .stat-card .num { font-size: 28px; font-weight: 700; color: var(--primary); }
+  .stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+  .section { margin-bottom: 36px; }
+  .section-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    padding-left: 14px;
+    border-left: 4px solid var(--primary);
+    color: var(--text);
+  }
+  .section-title .sub { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-left: 8px; }
+  .card {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card-title { font-size: 16px; font-weight: 600; margin-bottom: 14px; color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+  th { font-weight: 600; color: var(--text-secondary); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f9fbfc; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 14px; }
+  .bar-label { width: 80px; text-align: right; color: var(--text-secondary); flex-shrink: 0; }
+  .bar-track { flex: 1; height: 22px; background: #f0f2f5; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; color: #fff; font-size: 12px; font-weight: 600; transition: width 0.6s ease; }
+  .bar-fill.green { background: var(--primary); }
+  .bar-fill.blue { background: #576b95; }
+  .bar-fill.orange { background: var(--warning); }
+  .bar-fill.red { background: var(--danger); }
+  .bar-fill.purple { background: #8a6de9; }
+  .bar-fill.cyan { background: #4cc4d4; }
+  .donut-container { display: flex; align-items: center; gap: 30px; flex-wrap: wrap; }
+  .donut {
+    width: 160px; height: 160px; border-radius: 50%; position: relative; flex-shrink: 0;
+    background: conic-gradient(
+      #07c160 0% 42.2%,
+      #576b95 42.2% 76.9%,
+      #fa9d3b 76.9% 94.0%,
+      #4cc4d4 94.0% 97.8%,
+      #e15f63 97.8% 100.0%,
+      #ddd 100.0% 100%
+    );
+  }
+  .donut::after {
+    content: '12.19 GB';
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 100px; height: 100px; border-radius: 50%; background: var(--card-bg);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; color: var(--text);
+  }
+  .donut-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; }
+  .donut-legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .callout {
+    background: #f0faf3;
+    border: 1px solid #c8f0d6;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin: 12px 0;
+    font-size: 14px;
+  }
+  .callout.warning { background: #fff8ee; border-color: #ffe0b3; }
+  .callout.danger { background: #fdf0f0; border-color: #fcc; }
+  .callout .icon { font-size: 16px; margin-right: 4px; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .tag.green { background: #e8f7ee; color: var(--primary-dark); }
+  .tag.blue { background: #eef1f8; color: var(--accent); }
+  .tag.orange { background: #fff5e8; color: #d4840e; }
+  .tag.red { background: #fdeaea; color: #c44; }
+  .hour-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; margin: 10px 0; }
+  .hour-cell { aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; font-weight: 600; }
+  .hour-labels { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; font-size: 10px; color: var(--text-secondary); text-align: center; margin-top: 4px; }
+  .weekday-bars .bar-label { width: 50px; }
+  .rank-item {
+    display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .rank-item:last-child { border-bottom: none; }
+  .rank-num { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85em; flex-shrink: 0; margin-right: 12px; }
+  .rank-num.top1 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #fff; }
+  .rank-num.top2 { background: linear-gradient(135deg, #C0C0C0, #A0A0A0); color: #fff; }
+  .rank-num.top3 { background: linear-gradient(135deg, #CD7F32, #B87333); color: #fff; }
+  .rank-num.other { background: #f0f2f5; color: #999; }
+  .rank-info { flex: 1; min-width: 0; }
+  .rank-name { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-meta { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .rank-sub { font-size: 11px; color: #aaa; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rank-bar-mini { flex: 0 0 100px; height: 6px; background: #f0f2f5; border-radius: 3px; margin: 0 12px; overflow: hidden; }
+  .rank-bar-fill-mini { height: 100%; border-radius: 3px; }
+  .rank-count { flex-shrink: 0; width: 60px; text-align: right; font-weight: 700; color: var(--primary); font-size: 14px; }
+  .type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .type-item { background: #f9fbfc; border-radius: 10px; padding: 14px; display: flex; align-items: center; gap: 10px; }
+  .type-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .type-name { font-size: 13px; color: var(--text-secondary); }
+  .type-count { font-size: 18px; font-weight: 700; color: var(--text); }
+  .chart-container { display: flex; align-items: flex-end; gap: 6px; height: 160px; padding: 10px 0; }
+  .chart-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .chart-bar-fill { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.6s ease; position: relative; cursor: pointer; }
+  .chart-bar-fill:hover { opacity: 0.8; }
+  .chart-bar-fill .tooltip { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 10; }
+  .chart-bar-fill:hover .tooltip { opacity: 1; }
+  .chart-label { font-size: 11px; color: var(--text-secondary); margin-top: 6px; text-align: center; }
+  .footer { text-align: center; padding: 30px 0 0; font-size: 13px; color: var(--text-secondary); border-top: 1px solid var(--border); }
+  .milestone { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: linear-gradient(135deg, #f0faf3 0%, #eef1f8 100%); border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
+  .milestone-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .donut-container { flex-direction: column; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 8px; }
+    .rank-bar-mini { display: none; }
+    .chart-container { height: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>微信本地数据库分析报告</h1>
+  <div class="meta">
+    <span>分析日期：2026-08-02</span>
+    <span>账号：your_account</span>
+    <span>微信版本：4.1.11</span>
+    <span>数据已解密</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="num">81,781</div>
+      <div class="label">聊天消息总数</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">105</div>
+      <div class="label">群聊数量</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">244</div>
+      <div class="label">私聊会话</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">2,352</div>
+      <div class="label">聊天文件（5.14 GB）</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">25,180</div>
+      <div class="label">图片附件（4.23 GB）</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">12.19 GB</div>
+      <div class="label">总存储占用</div>
+    </div>
+  </div>
+
+  <!-- 一、解密突破历程 -->
+  <div class="section">
+    <h2 class="section-title">一、解密突破历程</h2>
+    <div class="card">
+      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">1</div><div><strong>文件系统分析</strong> — 扫描微信本地数据目录，梳理18个WCDB加密数据库、2,352个聊天文件、3,136个视频消息，总存储12.19GB</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#eef1f8">2</div><div><strong>SIP禁用 + 微信重签名</strong> — 恢复模式下执行<code>csrutil disable</code>，对微信App进行adhoc重签名（移除Hardened Runtime），获得进程内存读取权限</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#fff5e8">3</div><div><strong>编译chatlog提取密钥</strong> — 编译运行chatlog（Go版），从微信进程内存中成功提取32字节Data Key和Image Key</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#fdeaea">4</div><div><strong>发现4.1.11加密变更</strong> — 微信4.1.11改变了加密参数：message_0.db直接使用raw key作为enc_key，跳过PBKDF2 256000次迭代。自写Python解密脚本验证通过</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">5</div><div><strong>成功解密 + 聊天分析</strong> — message_0.db（65.3MB，16728页）解密成功，数据覆盖2026-04-23至2026-08-02，81,781条消息全部可读</div></div>
+    </div>
+  </div>
+
+  <!-- 二、数据目录结构 -->
+  <div class="section">
+    <h2 class="section-title">二、数据目录结构概览</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>目录</th><th>用途</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>db_storage/</code></td><td>加密数据库</td><td>18个SQLCipher加密的SQLite数据库</td></tr>
+          <tr><td><code>msg/file/</code></td><td>聊天文件消息</td><td>按月归档，共2,352个文件</td></tr>
+          <tr><td><code>msg/video/</code></td><td>视频消息</td><td>按月归档，共3,136个视频</td></tr>
+          <tr><td><code>msg/attach/</code></td><td>图片/语音附件</td><td>268个对话的附件，共25,180个文件</td></tr>
+          <tr><td><code>cache/</code></td><td>缓存文件</td><td>6,838个文件</td></tr>
+          <tr><td><code>resource/</code></td><td>表情/收藏/朋友圈</td><td>资源文件</td></tr>
+          <tr><td><code>config/</code></td><td>MMKV配置</td><td>加密配置文件</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 三、数据库文件清单 -->
+  <div class="section">
+    <h2 class="section-title">三、数据库文件清单 <span class="sub">共18个，272.4 MB，WCDB加密</span></h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>分类</th><th>文件名</th><th class="num">大小</th><th>用途</th><th>解密状态</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag bizchat">bizchat</span></td><td>bizchat.db</td><td class="num">0.0 MB</td><td>企业微信会话</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag contact">contact</span></td><td>contact.db</td><td class="num">16.4 MB</td><td>联系人信息</td><td><span class="tag blue">旧版可用</span></td></tr>
+          <tr><td><span class="tag contact">contact</span></td><td>contact_fts.db</td><td class="num">6.3 MB</td><td>联系人搜索索引</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag emoticon">emoticon</span></td><td>emoticon.db</td><td class="num">3.6 MB</td><td>表情包</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag favorite">favorite</span></td><td>favorite.db</td><td class="num">5.4 MB</td><td>收藏内容</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag favorite">favorite</span></td><td>favorite_fts.db</td><td class="num">1.6 MB</td><td>收藏搜索索引</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag general">general</span></td><td>general.db</td><td class="num">4.9 MB</td><td>通用数据</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag hardlink">hardlink</span></td><td>hardlink.db</td><td class="num">2.1 MB</td><td>硬链接索引</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag head_image">head_image</span></td><td>head_image.db</td><td class="num">22.3 MB</td><td>头像缓存</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>biz_message_0.db</td><td class="num">108.4 MB</td><td>公众号/企业消息</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>media_0.db</td><td class="num">1.5 MB</td><td>媒体资源</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>message_0.db</td><td class="num">65.3 MB</td><td>聊天消息主库</td><td><span class="tag green">已解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>message_fts.db</td><td class="num">21.9 MB</td><td>消息全文搜索索引</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>message_resource.db</td><td class="num">7.8 MB</td><td>消息资源文件</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag message">message</span></td><td>weclaw.db</td><td class="num">0.0 MB</td><td>消息扩展</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag session">session</span></td><td>session.db</td><td class="num">0.4 MB</td><td>会话列表</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag sns">sns</span></td><td>sns.db</td><td class="num">3.5 MB</td><td>朋友圈</td><td><span class="tag orange">待解密</span></td></tr>
+          <tr><td><span class="tag solitaire">solitaire</span></td><td>solitaire.db</td><td class="num">0.8 MB</td><td>接龙</td><td><span class="tag orange">待解密</span></td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>加密机制：</strong>WCDB（SQLCipher 4兼容），AES-256-CBC加密。微信4.1.11对加密参数做了变更——message_0.db直接使用raw key作为enc_key，跳过PBKDF2迭代。其他16个数据库可能使用不同的per-db密钥或参数，有待进一步研究。
+      </div>
+    </div>
+  </div>
+
+  <!-- 四、聊天消息分析 -->
+  <div class="section">
+    <h2 class="section-title">四、聊天消息分析 <span class="sub">81,781条消息 | 2026-04-23 08:05 ~ 2026-08-02 19:25</span></h2>
+    <div class="card">
+      <div class="card-title">群聊活跃度排名 Top 20</div>
+      <div class="rank-item">
+        <div class="rank-num top1">1</div>
+        <div class="rank-info">
+          <div class="rank-name">RX 🦌 网购社 ⑥<span class="tag red" style="margin-left:6px">超活跃</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 1人发言 | 文字5337 图片4115</div>
+          <div class="rank-sub">活跃: 欣儿🎈（找券@我）(5337)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 100.0%; background: #07c160;"></div></div>
+        <div class="rank-count">9,452</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top2">2</div>
+        <div class="rank-info">
+          <div class="rank-name">70-MiMo订阅会员支持群<span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">2026-05-11 ~ 2026-07-31 | 130人发言 | 文字2463 图片301</div>
+          <div class="rank-sub">活跃: 木马(366) | 星光(140) | 今晚一定早睡(135)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 36.4%; background: #576b95;"></div></div>
+        <div class="rank-count">3,443</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top3">3</div>
+        <div class="rank-info">
+          <div class="rank-name">🦐🐟经七路纬五路海鲜水果12群<span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 11人发言 | 文字1271 图片141</div>
+          <div class="rank-sub">活跃: 雨中慢步(1105) | 海鲜城(130) | wxid_72hsxb6udv3r12(16)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 30.7%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">2,906</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">4</div>
+        <div class="rank-info">
+          <div class="rank-name">君邻大院竹苑业主群<span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 201人发言 | 文字1841 图片362</div>
+          <div class="rank-sub">活跃: 権(107) | 图图小淘气(94) | wxid_nowiyjaok76p22(86)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 28.6%; background: #e15f63;"></div></div>
+        <div class="rank-count">2,705</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">5</div>
+        <div class="rank-info">
+          <div class="rank-name">理想L9车友群9️⃣群<span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 108人发言 | 文字1701 图片399</div>
+          <div class="rank-sub">活跃: 山河故人(440) | 哈欠(239) | KUI(86)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 28.0%; background: #8a6de9;"></div></div>
+        <div class="rank-count">2,645</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">6</div>
+        <div class="rank-info">
+          <div class="rank-name">高质量发展专项行动全省作战群<span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 138人发言 | 文字1401 图片563</div>
+          <div class="rank-sub">活跃: 袁冰(75) | 吴琼(65) | 赵素华(55)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 26.2%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">2,477</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">7</div>
+        <div class="rank-info">
+          <div class="rank-name">经二路29号院服务业主群</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 183人发言 | 文字1262 图片172</div>
+          <div class="rank-sub">活跃: Df(127) | 沙轶(96) | 郝姥爷(61)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 17.2%; background: #07c160;"></div></div>
+        <div class="rank-count">1,628</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">8</div>
+        <div class="rank-info">
+          <div class="rank-name">河南工作台（总监、平台管理员进）</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-07-30 | 41人发言 | 文字987 图片188</div>
+          <div class="rank-sub">活跃:    (148) | 我是GYY(127) | 黎明二号(124)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 16.0%; background: #576b95;"></div></div>
+        <div class="rank-count">1,514</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">9</div>
+        <div class="rank-info">
+          <div class="rank-name">06出版集团水果团购群</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-07-31 | 34人发言 | 文字487 图片595</div>
+          <div class="rank-sub">活跃: a优果派 ¹³³³³⁸²²²⁸¹(425) | 小彤(10) | 田丽丽(5)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 15.9%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">1,500</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">10</div>
+        <div class="rank-info">
+          <div class="rank-name">携程全球购海南购物群160</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 2人发言 | 文字453 图片836</div>
+          <div class="rank-sub">活跃: 福福—海南购物达人(315) | 群主-欧尼（线上直邮商城找我领券）(138)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 13.6%; background: #e15f63;"></div></div>
+        <div class="rank-count">1,290</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">11</div>
+        <div class="rank-info">
+          <div class="rank-name">郑州美团外卖12群-天天神券福利群</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 4人发言 | 文字249 图片7</div>
+          <div class="rank-sub">活跃: 天天神券福利君(137) | 天天神券福利君(49) | 天天神券福利君(49)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 12.1%; background: #8a6de9;"></div></div>
+        <div class="rank-count">1,143</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">12</div>
+        <div class="rank-info">
+          <div class="rank-name">FDZ</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-05-07 | 3人发言 | 文字687 图片120</div>
+          <div class="rank-sub">活跃: 若菡(285) | 余波(83) | 杜亚洲(81)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 9.7%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">914</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">13</div>
+        <div class="rank-info">
+          <div class="rank-name">河南AAA分经营工作副总群</div>
+          <div class="rank-meta">2026-04-24 ~ 2026-07-31 | 28人发言 | 文字689 图片151</div>
+          <div class="rank-sub">活跃: 郭瑶(81) | 曹蕊总(55) | 丁娜(35)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 9.2%; background: #07c160;"></div></div>
+        <div class="rank-count">870</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">14</div>
+        <div class="rank-info">
+          <div class="rank-name">奶茶不加糖</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-07-31 | 3人发言 | 文字788 图片28</div>
+          <div class="rank-sub">活跃: 袁洋(298) | 孙葆华(256) | 栗晓东(77)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 9.0%; background: #576b95;"></div></div>
+        <div class="rank-count">849</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">15</div>
+        <div class="rank-info">
+          <div class="rank-name">Claude code技术交流13群</div>
+          <div class="rank-meta">2026-05-17 ~ 2026-08-01 | 52人发言 | 文字433 图片19</div>
+          <div class="rank-sub">活跃: .(131) | 刘Something(32) | 蔡勇(27)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.8%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">643</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">16</div>
+        <div class="rank-info">
+          <div class="rank-name">众妙集</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 12人发言 | 文字240 图片204</div>
+          <div class="rank-sub">活跃: 李军刚(188) | 朱华昱(9) | 申田田(9)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.0%; background: #e15f63;"></div></div>
+        <div class="rank-count">564</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">17</div>
+        <div class="rank-info">
+          <div class="rank-name">小李补胎黄河一店车友福利群</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 2人发言 | 文字277 图片151</div>
+          <div class="rank-sub">活跃: 小李哥(电联114转小李补胎)(276) | 周林小李补胎电商部(1)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.9%; background: #8a6de9;"></div></div>
+        <div class="rank-count">555</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">18</div>
+        <div class="rank-info">
+          <div class="rank-name">驿林农大生鲜-电信省公司西门</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-07-26 | 37人发言 | 文字156 图片24</div>
+          <div class="rank-sub">活跃: A农大配送-小强（18137113405）(37) | 农大阿天-13103813361(25) | A农大司机小崔同学，17839513811(23)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.7%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">539</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">19</div>
+        <div class="rank-info">
+          <div class="rank-name">郑州十一中2817班交流群</div>
+          <div class="rank-meta">2026-04-24 ~ 2026-08-01 | 39人发言 | 文字259 图片50</div>
+          <div class="rank-sub">活跃: 王晨(84) | 阿智(20) | 兰花草(13)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.5%; background: #07c160;"></div></div>
+        <div class="rank-count">523</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">20</div>
+        <div class="rank-info">
+          <div class="rank-name">寄海火锅会员群#033</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 10人发言 | 文字195 图片257</div>
+          <div class="rank-sub">活跃: 客服小海（工作日9:00-18:00）(73) | 寄海火锅客服#1(65) | 25984983144768960@openim(37)</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.0%; background: #576b95;"></div></div>
+        <div class="rank-count">469</div>
+      </div>    </div>
+    <div class="card">
+      <div class="card-title">私聊频次排名 Top 20</div>
+      <div class="rank-item">
+        <div class="rank-num top1">1</div>
+        <div class="rank-info">
+          <div class="rank-name">若菡<span class="tag red" style="margin-left:6px">超高频</span></div>
+          <div class="rank-meta">2026-06-11 ~ 2026-08-02 | 文字8949 图片316 视频2</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 100.0%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">9,861</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top2">2</div>
+        <div class="rank-info">
+          <div class="rank-name">刘晓佳<span class="tag green" style="margin-left:6px">高频</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字1735 图片244 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 22.5%; background: #e15f63;"></div></div>
+        <div class="rank-count">2,217</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top3">3</div>
+        <div class="rank-info">
+          <div class="rank-name">耿成涛<span class="tag green" style="margin-left:6px">高频</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字1544 图片177 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 21.3%; background: #8a6de9;"></div></div>
+        <div class="rank-count">2,098</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">4</div>
+        <div class="rank-info">
+          <div class="rank-name">金歌<span class="tag green" style="margin-left:6px">高频</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字1060 图片119 视频2</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 12.7%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">1,256</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">5</div>
+        <div class="rank-info">
+          <div class="rank-name">吕苏宏总<span class="tag green" style="margin-left:6px">高频</span></div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-01 | 文字983 图片89 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 12.4%; background: #07c160;"></div></div>
+        <div class="rank-count">1,223</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">6</div>
+        <div class="rank-info">
+          <div class="rank-name">袁洋<span class="tag green" style="margin-left:6px">高频</span></div>
+          <div class="rank-meta">2026-04-24 ~ 2026-07-31 | 文字1129 图片25 视频1</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 11.9%; background: #576b95;"></div></div>
+        <div class="rank-count">1,174</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">7</div>
+        <div class="rank-info">
+          <div class="rank-name">崔艳林</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-07-31 | 文字732 图片48 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 9.2%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">909</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">8</div>
+        <div class="rank-info">
+          <div class="rank-name">曹蕊总</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-01 | 文字631 图片87 视频1</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 8.5%; background: #e15f63;"></div></div>
+        <div class="rank-count">838</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">9</div>
+        <div class="rank-info">
+          <div class="rank-name">武林</div>
+          <div class="rank-meta">2026-04-24 ~ 2026-07-25 | 文字604 图片76 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 7.0%; background: #8a6de9;"></div></div>
+        <div class="rank-count">686</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">10</div>
+        <div class="rank-info">
+          <div class="rank-name">余波</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字281 图片221 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.8%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">667</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">11</div>
+        <div class="rank-info">
+          <div class="rank-name">王总</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字562 图片32 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.5%; background: #07c160;"></div></div>
+        <div class="rank-count">639</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">12</div>
+        <div class="rank-info">
+          <div class="rank-name">文件传输助手</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-01 | 文字267 图片131 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.7%; background: #576b95;"></div></div>
+        <div class="rank-count">567</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">13</div>
+        <div class="rank-info">
+          <div class="rank-name">孙浩正</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字368 图片59 视频1</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.2%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">515</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">14</div>
+        <div class="rank-info">
+          <div class="rank-name">赵素华</div>
+          <div class="rank-meta">2026-04-24 ~ 2026-08-01 | 文字433 图片10 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.7%; background: #e15f63;"></div></div>
+        <div class="rank-count">464</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">15</div>
+        <div class="rank-info">
+          <div class="rank-name">国信王丹</div>
+          <div class="rank-meta">2026-06-25 ~ 2026-08-02 | 文字410 图片20 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.7%; background: #8a6de9;"></div></div>
+        <div class="rank-count">462</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">16</div>
+        <div class="rank-info">
+          <div class="rank-name">mmo9cq802nE11n3-kg6ueqpFQDf_IU@weclaw</div>
+          <div class="rank-meta">2026-05-24 ~ 2026-07-31 | 文字191 图片23 视频3</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.7%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">459</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">17</div>
+        <div class="rank-info">
+          <div class="rank-name">张令威</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-08-02 | 文字342 图片20 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.5%; background: #07c160;"></div></div>
+        <div class="rank-count">442</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">18</div>
+        <div class="rank-info">
+          <div class="rank-name">刘旭</div>
+          <div class="rank-meta">2026-05-26 ~ 2026-07-25 | 文字375 图片12 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.1%; background: #576b95;"></div></div>
+        <div class="rank-count">401</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">19</div>
+        <div class="rank-info">
+          <div class="rank-name">马璐璐</div>
+          <div class="rank-meta">2026-05-15 ~ 2026-07-31 | 文字276 图片39 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 3.5%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">347</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">20</div>
+        <div class="rank-info">
+          <div class="rank-name">刘亚格</div>
+          <div class="rank-meta">2026-04-23 ~ 2026-06-18 | 文字313 图片3 视频0</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 3.2%; background: #e15f63;"></div></div>
+        <div class="rank-count">320</div>
+      </div>    </div>
+    <div class="card">
+      <div class="card-title">群聊中最活跃的人 Top 20</div>
+      <div class="rank-item">
+        <div class="rank-num top1">1</div>
+        <div class="rank-info">
+          <div class="rank-name">欣儿🎈（找券@我） <span style="color:#999;font-weight:400">（RX 🦌 网购社 ⑥）</span><span class="tag red" style="margin-left:6px">话痨</span></div>
+          <div class="rank-meta">共在群聊中发送 5,337 条文字消息，其中在《RX 🦌 网购社 ⑥》最多（5,337条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 100.0%; background: #8a6de9;"></div></div>
+        <div class="rank-count">5,337</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top2">2</div>
+        <div class="rank-info">
+          <div class="rank-name">雨中慢步 <span style="color:#999;font-weight:400">（🦐🐟经七路纬五路海鲜水果12群）</span><span class="tag green" style="margin-left:6px">活跃</span></div>
+          <div class="rank-meta">共在群聊中发送 1,105 条文字消息，其中在《🦐🐟经七路纬五路海鲜水果12群》最多（1,105条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 20.7%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">1,105</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num top3">3</div>
+        <div class="rank-info">
+          <div class="rank-name">山河故人 <span style="color:#999;font-weight:400">（理想L9车友群9️⃣群）</span></div>
+          <div class="rank-meta">共在群聊中发送 440 条文字消息，其中在《理想L9车友群9️⃣群》最多（440条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 8.2%; background: #07c160;"></div></div>
+        <div class="rank-count">440</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">4</div>
+        <div class="rank-info">
+          <div class="rank-name">a优果派 ¹³³³³⁸²²²⁸¹ <span style="color:#999;font-weight:400">（06出版集团水果团购群）</span></div>
+          <div class="rank-meta">共在群聊中发送 425 条文字消息，其中在《06出版集团水果团购群》最多（425条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 8.0%; background: #576b95;"></div></div>
+        <div class="rank-count">425</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">5</div>
+        <div class="rank-info">
+          <div class="rank-name">木马 <span style="color:#999;font-weight:400">（70-MiMo订阅会员支持群）</span></div>
+          <div class="rank-meta">共在群聊中发送 366 条文字消息，其中在《70-MiMo订阅会员支持群》最多（366条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.9%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">366</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">6</div>
+        <div class="rank-info">
+          <div class="rank-name">若菡 <span style="color:#999;font-weight:400">（FDZ）</span></div>
+          <div class="rank-meta">共在群聊中发送 354 条文字消息，其中在《FDZ》最多（285条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.6%; background: #e15f63;"></div></div>
+        <div class="rank-count">354</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">7</div>
+        <div class="rank-info">
+          <div class="rank-name">袁洋 <span style="color:#999;font-weight:400">（奶茶不加糖）</span></div>
+          <div class="rank-meta">共在群聊中发送 322 条文字消息，其中在《奶茶不加糖》最多（298条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 6.0%; background: #8a6de9;"></div></div>
+        <div class="rank-count">322</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">8</div>
+        <div class="rank-info">
+          <div class="rank-name">福福—海南购物达人 <span style="color:#999;font-weight:400">（携程全球购海南购物群160）</span></div>
+          <div class="rank-meta">共在群聊中发送 315 条文字消息，其中在《携程全球购海南购物群160》最多（315条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.9%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">315</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">9</div>
+        <div class="rank-info">
+          <div class="rank-name">孙葆华 <span style="color:#999;font-weight:400">（奶茶不加糖）</span></div>
+          <div class="rank-meta">共在群聊中发送 296 条文字消息，其中在《奶茶不加糖》最多（256条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.5%; background: #07c160;"></div></div>
+        <div class="rank-count">296</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">10</div>
+        <div class="rank-info">
+          <div class="rank-name">小李哥(电联114转小李补胎) <span style="color:#999;font-weight:400">（小李补胎黄河一店车友福利群）</span></div>
+          <div class="rank-meta">共在群聊中发送 276 条文字消息，其中在《小李补胎黄河一店车友福利群》最多（276条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 5.2%; background: #576b95;"></div></div>
+        <div class="rank-count">276</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">11</div>
+        <div class="rank-info">
+          <div class="rank-name">哈欠 <span style="color:#999;font-weight:400">（理想L9车友群9️⃣群）</span></div>
+          <div class="rank-meta">共在群聊中发送 239 条文字消息，其中在《理想L9车友群9️⃣群》最多（239条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 4.5%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">239</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">12</div>
+        <div class="rank-info">
+          <div class="rank-name">李军刚 <span style="color:#999;font-weight:400">（众妙集）</span></div>
+          <div class="rank-meta">共在群聊中发送 193 条文字消息，其中在《众妙集》最多（188条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 3.6%; background: #e15f63;"></div></div>
+        <div class="rank-count">193</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">13</div>
+        <div class="rank-info">
+          <div class="rank-name">中垦便利 <span style="color:#999;font-weight:400">（农垦商超永和店会员群）</span></div>
+          <div class="rank-meta">共在群聊中发送 183 条文字消息，其中在《农垦商超永和店会员群》最多（183条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 3.4%; background: #8a6de9;"></div></div>
+        <div class="rank-count">183</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">14</div>
+        <div class="rank-info">
+          <div class="rank-name">赵海齐 <span style="color:#999;font-weight:400">（河南工作台（总监、平台管理员进））</span></div>
+          <div class="rank-meta">共在群聊中发送 150 条文字消息，其中在《河南工作台（总监、平台管理员进）》最多（56条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.8%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">150</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">15</div>
+        <div class="rank-info">
+          <div class="rank-name">    <span style="color:#999;font-weight:400">（河南工作台（总监、平台管理员进））</span></div>
+          <div class="rank-meta">共在群聊中发送 148 条文字消息，其中在《河南工作台（总监、平台管理员进）》最多（148条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.8%; background: #07c160;"></div></div>
+        <div class="rank-count">148</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">16</div>
+        <div class="rank-info">
+          <div class="rank-name">星光 <span style="color:#999;font-weight:400">（70-MiMo订阅会员支持群）</span></div>
+          <div class="rank-meta">共在群聊中发送 140 条文字消息，其中在《70-MiMo订阅会员支持群》最多（140条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.6%; background: #576b95;"></div></div>
+        <div class="rank-count">140</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">17</div>
+        <div class="rank-info">
+          <div class="rank-name">群主-欧尼（线上直邮商城找我领券） <span style="color:#999;font-weight:400">（携程全球购海南购物群160）</span></div>
+          <div class="rank-meta">共在群聊中发送 138 条文字消息，其中在《携程全球购海南购物群160》最多（138条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.6%; background: #fa9d3b;"></div></div>
+        <div class="rank-count">138</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">18</div>
+        <div class="rank-info">
+          <div class="rank-name">天天神券福利君 <span style="color:#999;font-weight:400">（郑州美团外卖12群-天天神券福利群）</span></div>
+          <div class="rank-meta">共在群聊中发送 137 条文字消息，其中在《郑州美团外卖12群-天天神券福利群》最多（137条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.6%; background: #e15f63;"></div></div>
+        <div class="rank-count">137</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">19</div>
+        <div class="rank-info">
+          <div class="rank-name">今晚一定早睡 <span style="color:#999;font-weight:400">（70-MiMo订阅会员支持群）</span></div>
+          <div class="rank-meta">共在群聊中发送 135 条文字消息，其中在《70-MiMo订阅会员支持群》最多（135条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.5%; background: #8a6de9;"></div></div>
+        <div class="rank-count">135</div>
+      </div>
+      <div class="rank-item">
+        <div class="rank-num other">20</div>
+        <div class="rank-info">
+          <div class="rank-name">郭瑶 <span style="color:#999;font-weight:400">（河南AAA分经营工作副总群）</span></div>
+          <div class="rank-meta">共在群聊中发送 133 条文字消息，其中在《河南AAA分经营工作副总群》最多（81条）</div>
+        </div>
+        <div class="rank-bar-mini"><div class="rank-bar-fill-mini" style="width: 2.5%; background: #4cc4d4;"></div></div>
+        <div class="rank-count">133</div>
+      </div>    </div>
+    <div class="card">
+      <div class="card-title">消息类型分布</div>
+      <div class="type-grid">
+        <div class="type-item">
+          <div class="type-dot" style="background: #576b95;"></div>
+          <div>
+            <div class="type-name">文字</div>
+            <div class="type-count">55,615 <span style="font-size:12px;color:#999">(68.0%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #576b95;"></div>
+          <div>
+            <div class="type-name">图片</div>
+            <div class="type-count">12,949 <span style="font-size:12px;color:#999">(15.8%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #e15f63;"></div>
+          <div>
+            <div class="type-name">其他(25769803825)</div>
+            <div class="type-count">2,377 <span style="font-size:12px;color:#999">(2.9%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #fa9d3b;"></div>
+          <div>
+            <div class="type-name">其他(244813135921)</div>
+            <div class="type-count">2,351 <span style="font-size:12px;color:#999">(2.9%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #07c160;"></div>
+          <div>
+            <div class="type-name">视频</div>
+            <div class="type-count">1,822 <span style="font-size:12px;color:#999">(2.2%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #07c160;"></div>
+          <div>
+            <div class="type-name">其他(141733920817)</div>
+            <div class="type-count">1,820 <span style="font-size:12px;color:#999">(2.2%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #576b95;"></div>
+          <div>
+            <div class="type-name">系统消息</div>
+            <div class="type-count">1,658 <span style="font-size:12px;color:#999">(2.0%)</span></div>
+          </div>
+        </div>
+        <div class="type-item">
+          <div class="type-dot" style="background: #4cc4d4;"></div>
+          <div>
+            <div class="type-name">其他(227633266737)</div>
+            <div class="type-count">789 <span style="font-size:12px;color:#999">(1.0%)</span></div>
+          </div>
+        </div>      </div>
+    </div>
+  </div>
+
+  <!-- 五、聊天文件消息分析 -->
+  <div class="section">
+    <h2 class="section-title">五、聊天文件消息分析 <span class="sub">2,352个文件，5.14 GB，时间跨度4月~8月</span></h2>
+    <div class="card">
+      <div class="card-title">文件类型分布</div>
+      <div class="bar-row"><div class="bar-label">Excel</div><div class="bar-track"><div class="bar-fill green" style="width:100.0%">947 (40.3%) · 1036 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">PDF</div><div class="bar-track"><div class="bar-fill blue" style="width:66.3%">628 (26.7%) · 1216 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">Word</div><div class="bar-track"><div class="bar-fill orange" style="width:35.8%">339 (14.4%) · 151 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">PPT</div><div class="bar-track"><div class="bar-fill red" style="width:33.3%">315 (13.4%) · 1540 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">其他</div><div class="bar-track"><div class="bar-fill blue" style="width:6.8%">64 (2.7%) · 127 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">压缩包</div><div class="bar-track"><div class="bar-fill purple" style="width:4.8%">45 (1.9%) · 1057 MB</div></div></div>
+      <div class="bar-row"><div class="bar-label">图片</div><div class="bar-track"><div class="bar-fill cyan" style="width:1.5%">14 (0.6%) · 140 MB</div></div></div>      <div class="callout">Excel占比最高（40.3%），其次是PDF，与工作场景高度吻合——大量数据报表、通报文件和汇报材料。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">月度文件趋势</div>
+      <table>
+        <thead><tr><th>月份</th><th class="num">文件数</th><th class="num">总大小</th><th>趋势</th><th class="num">环比</th></tr></thead>
+        <tbody>
+          <tr><td>2026-04</td><td class="num">206</td><td class="num">307 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:25.5%"></div></div></td><td class="num">-</td></tr>
+          <tr><td>2026-05</td><td class="num">491</td><td class="num">930 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:60.7%"></div></div></td><td class="num" style="color:#e15f63">+138%</td></tr>
+          <tr><td>2026-06</td><td class="num">804</td><td class="num">1166 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:99.4%"></div></div></td><td class="num" style="color:#e15f63">+64%</td></tr>
+          <tr><td>2026-07</td><td class="num">809</td><td class="num">2831 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:100.0%"></div></div></td><td class="num" style="color:#fa9d3b">+1%</td></tr>
+          <tr><td>2026-08</td><td class="num">42</td><td class="num">33 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:5.2%"></div></div></td><td class="num" style="">-95%</td></tr>        </tbody>
+      </table>
+      <div class="callout">4月到7月文件数量增长近4倍，工作强度持续上升。7月体积最大（2831 MB），大文件增多。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">工作主题分类</div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">管理报告</div><div class="bar-track"><div class="bar-fill green" style="width:100.0%">530 · 市场部报告、一周活动安排、经分会材料</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">数据统计</div><div class="bar-track"><div class="bar-fill blue" style="width:60.2%">319 · 线上发展量统计、台账、汇总</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">业务分析</div><div class="bar-track"><div class="bar-fill orange" style="width:29.1%">154 · 退订统计、移网净增、新入网</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">收入分析</div><div class="bar-track"><div class="bar-fill red" style="width:27.4%">145 · 收入会审、核心平台收入、地市通报</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">虚假业务</div><div class="bar-track"><div class="bar-fill purple" style="width:11.7%">62 · 群腐整治、违规处罚、终端核查</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">佣金结算</div><div class="bar-track"><div class="bar-fill cyan" style="width:8.5%">45 · 佣金扣罚、结算承诺函、对账</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">质检工作</div><div class="bar-track"><div class="bar-fill blue" style="width:6.6%">35 · 质检周报、听原声、新入网质检</div></div></div>
+      <div class="bar-row"><div class="bar-label" style="width:90px">检查审计</div><div class="bar-track"><div class="bar-fill orange" style="width:2.3%">12 · 集团检查、核查报告</div></div></div>    </div>
+    <div class="card">
+      <div class="card-title">高频迭代文件（版本迭代最多）</div>
+      <table>
+        <thead><tr><th>文件名</th><th class="num">出现次数</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>一周活动安排</td><td class="num"><span class="tag green">54次</span></td><td>每周固定发送</td></tr>
+          <tr><td>退订_202607v1</td><td class="num"><span class="tag green">31次</span></td><td>专项问题处理</td></tr>
+          <tr><td>线上发展量统计v1_202607月</td><td class="num"><span class="tag blue">31次</span></td><td>定期报表，每月多版本迭代</td></tr>
+          <tr><td>退订_202606v1</td><td class="num"><span class="tag blue">29次</span></td><td>专项问题处理</td></tr>
+          <tr><td>线上发展量统计v1_202606月</td><td class="num"><span class="tag orange">29次</span></td><td>定期报表，每月多版本迭代</td></tr>
+          <tr><td>线上发展量统计v1_202605月</td><td class="num"><span class="tag orange">27次</span></td><td>定期报表，每月多版本迭代</td></tr>
+          <tr><td>退订_202605v1</td><td class="num"><span class="tag orange">24次</span></td><td>专项问题处理</td></tr>
+          <tr><td>经分会-2026年二季度市场经营分析-上会版</td><td class="num"><span class="tag">15次</span></td><td>季度分析报告</td></tr>
+          <tr><td>2026年虚假业绩群腐整治工作部署-市场部</td><td class="num"><span class="tag">14次</span></td><td>工作部署文件</td></tr>
+          <tr><td>2026年二季度市场经营分析-0712</td><td class="num"><span class="tag">13次</span></td><td>季度分析报告</td></tr>        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 六、视频与图片附件 -->
+  <div class="section">
+    <h2 class="section-title">六、视频与图片附件分析</h2>
+    <div class="card">
+      <div class="card-title">视频消息 <span style="font-size:13px;font-weight:400;color:#999">3,136个，2.09 GB，日均约31个</span></div>
+      <div class="bar-row"><div class="bar-label">2026-04</div><div class="bar-track"><div class="bar-fill green" style="width:14.3%">186</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-05</div><div class="bar-track"><div class="bar-fill green" style="width:100.0%">1298 (41.4%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-06</div><div class="bar-track"><div class="bar-fill green" style="width:50.9%">661 (21.1%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-07</div><div class="bar-track"><div class="bar-fill green" style="width:73.2%">950 (30.3%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-08</div><div class="bar-track"><div class="bar-fill green" style="width:3.2%">41</div></div></div>    </div>
+    <div class="card">
+      <div class="card-title">图片/语音附件 <span style="font-size:13px;font-weight:400;color:#999">268个对话，25,180个文件，4.23 GB</span></div>
+      <div class="bar-row"><div class="bar-label">2026-04</div><div class="bar-track"><div class="bar-fill blue" style="width:21.4%">2086</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-05</div><div class="bar-track"><div class="bar-fill blue" style="width:61.1%">5965 (23.7%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-06</div><div class="bar-track"><div class="bar-fill blue" style="width:100.0%">9761 (38.8%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-07</div><div class="bar-track"><div class="bar-fill blue" style="width:71.6%">6984 (27.7%)</div></div></div>
+      <div class="bar-row"><div class="bar-label">2026-08</div><div class="bar-track"><div class="bar-fill blue" style="width:3.9%">384</div></div></div>    </div>
+    <div class="card">
+      <div class="card-title">附件最活跃对话 Top 10</div>
+      <table>
+        <thead><tr><th class="num">#</th><th>对话ID</th><th class="num">文件数</th><th class="num">大小</th><th>占比可视化</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td><code>4f5e819e…</code></td><td class="num">6,440</td><td class="num">162 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:100.0%"></div></div></td></tr>
+          <tr><td class="num">2</td><td><code>6915b20f…</code></td><td class="num">1,111</td><td class="num">96 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:17.3%"></div></div></td></tr>
+          <tr><td class="num">3</td><td><code>07ccd04d…</code></td><td class="num">1,072</td><td class="num">431 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:16.6%"></div></div></td></tr>
+          <tr><td class="num">4</td><td><code>f4712ae7…</code></td><td class="num">1,012</td><td class="num">440 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:15.7%"></div></div></td></tr>
+          <tr><td class="num">5</td><td><code>94ad4f00…</code></td><td class="num">821</td><td class="num">292 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:12.7%"></div></div></td></tr>
+          <tr><td class="num">6</td><td><code>3e71e238…</code></td><td class="num">809</td><td class="num">36 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:12.6%"></div></div></td></tr>
+          <tr><td class="num">7</td><td><code>3abf86d4…</code></td><td class="num">735</td><td class="num">112 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:11.4%"></div></div></td></tr>
+          <tr><td class="num">8</td><td><code>55204d4e…</code></td><td class="num">668</td><td class="num">45 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:10.4%"></div></div></td></tr>
+          <tr><td class="num">9</td><td><code>08e111e0…</code></td><td class="num">637</td><td class="num">25 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:9.9%"></div></div></td></tr>
+          <tr><td class="num">10</td><td><code>a66d1524…</code></td><td class="num">631</td><td class="num">137 MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:9.8%"></div></div></td></tr>        </tbody>
+      </table>
+      <div class="callout">Top1对话的文件数占26%，说明有一个非常高频的群聊或个人对话。</div>
+    </div>
+  </div>
+
+  <!-- 七、时间分布 -->
+  <div class="section">
+    <h2 class="section-title">七、消息与文件时间分布</h2>
+    <div class="card">
+      <div class="card-title">消息每小时分布（81,781条消息）</div>
+      <div class="chart-container">
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 13.5%; background: #fa9d3b;">
+            <span class="tooltip">0:00 - 986条</span>
+          </div>
+          <div class="chart-label">0</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 7.7%; background: #fa9d3b;">
+            <span class="tooltip">1:00 - 562条</span>
+          </div>
+          <div class="chart-label">1</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 2.6%; background: #fa9d3b;">
+            <span class="tooltip">2:00 - 193条</span>
+          </div>
+          <div class="chart-label">2</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 0.2%; background: #fa9d3b;">
+            <span class="tooltip">3:00 - 15条</span>
+          </div>
+          <div class="chart-label">3</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 0.3%; background: #fa9d3b;">
+            <span class="tooltip">4:00 - 19条</span>
+          </div>
+          <div class="chart-label">4</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 1.8%; background: #fa9d3b;">
+            <span class="tooltip">5:00 - 133条</span>
+          </div>
+          <div class="chart-label">5</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 5.7%; background: #576b95;">
+            <span class="tooltip">6:00 - 412条</span>
+          </div>
+          <div class="chart-label">6</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 23.7%; background: #576b95;">
+            <span class="tooltip">7:00 - 1,726条</span>
+          </div>
+          <div class="chart-label">7</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 56.9%; background: #576b95;">
+            <span class="tooltip">8:00 - 4,146条</span>
+          </div>
+          <div class="chart-label">8</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 86.5%; background: #07c160;">
+            <span class="tooltip">9:00 - 6,305条</span>
+          </div>
+          <div class="chart-label">9</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 93.1%; background: #07c160;">
+            <span class="tooltip">10:00 - 6,783条</span>
+          </div>
+          <div class="chart-label">10</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 100.0%; background: #07c160;">
+            <span class="tooltip">11:00 - 7,287条</span>
+          </div>
+          <div class="chart-label">11</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 64.5%; background: #07c160;">
+            <span class="tooltip">12:00 - 4,697条</span>
+          </div>
+          <div class="chart-label">12</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 44.7%; background: #07c160;">
+            <span class="tooltip">13:00 - 3,256条</span>
+          </div>
+          <div class="chart-label">13</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 68.8%; background: #07c160;">
+            <span class="tooltip">14:00 - 5,010条</span>
+          </div>
+          <div class="chart-label">14</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 81.2%; background: #07c160;">
+            <span class="tooltip">15:00 - 5,920条</span>
+          </div>
+          <div class="chart-label">15</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 88.8%; background: #07c160;">
+            <span class="tooltip">16:00 - 6,472条</span>
+          </div>
+          <div class="chart-label">16</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 81.3%; background: #07c160;">
+            <span class="tooltip">17:00 - 5,924条</span>
+          </div>
+          <div class="chart-label">17</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 78.9%; background: #07c160;">
+            <span class="tooltip">18:00 - 5,753条</span>
+          </div>
+          <div class="chart-label">18</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 53.8%; background: #576b95;">
+            <span class="tooltip">19:00 - 3,919条</span>
+          </div>
+          <div class="chart-label">19</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 48.7%; background: #576b95;">
+            <span class="tooltip">20:00 - 3,548条</span>
+          </div>
+          <div class="chart-label">20</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 54.0%; background: #576b95;">
+            <span class="tooltip">21:00 - 3,937条</span>
+          </div>
+          <div class="chart-label">21</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 41.3%; background: #fa9d3b;">
+            <span class="tooltip">22:00 - 3,013条</span>
+          </div>
+          <div class="chart-label">22</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 24.2%; background: #fa9d3b;">
+            <span class="tooltip">23:00 - 1,765条</span>
+          </div>
+          <div class="chart-label">23</div>
+        </div>      </div>
+      <div class="callout">消息高峰集中在9-11点和14-17点，与文件活动高峰重合。2026-06月消息量最大（27,854条），日均约928条。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">消息每周分布</div>
+      <div class="chart-container">
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 84.9%; background: #07c160;">
+            <span class="tooltip">周一 - 12,146条</span>
+          </div>
+          <div class="chart-label">周一</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 90.3%; background: #07c160;">
+            <span class="tooltip">周二 - 12,909条</span>
+          </div>
+          <div class="chart-label">周二</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 96.1%; background: #07c160;">
+            <span class="tooltip">周三 - 13,739条</span>
+          </div>
+          <div class="chart-label">周三</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 100.0%; background: #07c160;">
+            <span class="tooltip">周四 - 14,302条</span>
+          </div>
+          <div class="chart-label">周四</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 88.5%; background: #07c160;">
+            <span class="tooltip">周五 - 12,664条</span>
+          </div>
+          <div class="chart-label">周五</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 49.4%; background: #fa9d3b;">
+            <span class="tooltip">周六 - 7,069条</span>
+          </div>
+          <div class="chart-label">周六</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 62.6%; background: #fa9d3b;">
+            <span class="tooltip">周日 - 8,952条</span>
+          </div>
+          <div class="chart-label">周日</div>
+        </div>      </div>
+      <div class="callout">工作日消息量明显大于周末，周四消息最多（14,302条）。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">消息月度趋势</div>
+      <div class="chart-container">
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 24.1%; background: #07c160;">
+            <span class="tooltip">2026-04 - 6,718条</span>
+          </div>
+          <div class="chart-label">04</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 69.1%; background: #07c160;">
+            <span class="tooltip">2026-05 - 19,258条</span>
+          </div>
+          <div class="chart-label">05</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 100.0%; background: #07c160;">
+            <span class="tooltip">2026-06 - 27,854条</span>
+          </div>
+          <div class="chart-label">06</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 95.6%; background: #07c160;">
+            <span class="tooltip">2026-07 - 26,637条</span>
+          </div>
+          <div class="chart-label">07</div>
+        </div>
+        <div class="chart-bar">
+          <div class="chart-bar-fill" style="height: 4.7%; background: #07c160;">
+            <span class="tooltip">2026-08 - 1,314条</span>
+          </div>
+          <div class="chart-label">08</div>
+        </div>    </div>
+    </div>
+    <div class="card">
+      <div class="card-title">文件活动按小时分布</div>
+      <div class="hour-grid">        <div class="hour-cell" style="background:#e8f7ee;color:#999">0</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">1</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">2</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">3</div>
+        <div class="hour-cell" style="background:#e8f7ee;color:#999">4</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">5</div>
+        <div class="hour-cell" style="background:#a8e8ba;color:#07c160">6</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">7</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">8</div>
+        <div class="hour-cell" style="background:#07c160;color:#fff">9</div>
+        <div class="hour-cell" style="background:#07c160;color:#fff">10</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">11</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">12</div>
+        <div class="hour-cell" style="background:#7adb9e;color:#fff">13</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">14</div>
+        <div class="hour-cell" style="background:#3acc73;color:#fff">15</div>
+        <div class="hour-cell" style="background:#07c160;color:#fff">16</div>
+        <div class="hour-cell" style="background:#07c160;color:#fff">17</div>
+        <div class="hour-cell" style="background:#07c160;color:#fff">18</div>
+        <div class="hour-cell" style="background:#7adb9e;color:#fff">19</div>
+        <div class="hour-cell" style="background:#7adb9e;color:#fff">20</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">21</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">22</div>
+        <div class="hour-cell" style="background:#c8f0d6;color:#07c160">23</div>
+      </div>
+      <div class="hour-labels">
+        <div>0</div><div>1</div><div>2</div><div>3</div><div>4</div><div>5</div>
+        <div>6</div><div>7</div><div>8</div><div>9</div><div>10</div><div>11</div>
+        <div>12</div><div>13</div><div>14</div><div>15</div><div>16</div><div>17</div>
+        <div>18</div><div>19</div><div>20</div><div>21</div><div>22</div><div>23</div>
+      </div>
+      <div style="margin-top:16px">
+        <div class="bar-row" style="font-size:13px;color:#666;margin-bottom:4px">Top 5 最活跃时段（文件）</div>
+        <div class="bar-row"><div class="bar-label">09:00</div><div class="bar-track"><div class="bar-fill green" style="width:100.0%">240</div></div></div>
+        <div class="bar-row"><div class="bar-label">10:00</div><div class="bar-track"><div class="bar-fill green" style="width:87.9%">211</div></div></div>
+        <div class="bar-row"><div class="bar-label">18:00</div><div class="bar-track"><div class="bar-fill green" style="width:83.8%">201</div></div></div>
+        <div class="bar-row"><div class="bar-label">16:00</div><div class="bar-track"><div class="bar-fill green" style="width:83.3%">200</div></div></div>
+        <div class="bar-row"><div class="bar-label">17:00</div><div class="bar-track"><div class="bar-fill green" style="width:81.2%">195</div></div></div>      </div>
+      <div class="callout">文件活动高峰与消息高峰重合，上午9-11点和下午16-18点为双重活跃期。</div>
+    </div>
+    <div class="card weekday-bars">
+      <div class="card-title">文件按星期分布</div>
+      <div class="bar-row"><div class="bar-label">周一</div><div class="bar-track"><div class="bar-fill green" style="width:100.0%">460</div></div></div>
+      <div class="bar-row"><div class="bar-label">周二</div><div class="bar-track"><div class="bar-fill green" style="width:81.1%">373</div></div></div>
+      <div class="bar-row"><div class="bar-label">周三</div><div class="bar-track"><div class="bar-fill green" style="width:80.0%">368</div></div></div>
+      <div class="bar-row"><div class="bar-label">周四</div><div class="bar-track"><div class="bar-fill green" style="width:86.5%">398</div></div></div>
+      <div class="bar-row"><div class="bar-label">周五</div><div class="bar-track"><div class="bar-fill green" style="width:99.6%">458</div></div></div>
+      <div class="bar-row"><div class="bar-label">周六</div><div class="bar-track"><div class="bar-fill orange" style="width:24.8%">114</div></div></div>
+      <div class="bar-row"><div class="bar-label">周日</div><div class="bar-track"><div class="bar-fill orange" style="width:39.3%">181</div></div></div>      <div class="callout">周一和周五文件活动最频繁，符合"周一部署、周五收尾"的工作节奏。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">最活跃日期 Top 5（文件数）</div>
+      <table>
+        <thead><tr><th class="num">排名</th><th>日期</th><th class="num">文件数</th><th>星期</th></tr></thead>
+        <tbody>
+          <tr><td class="num">1</td><td>2026-07-13</td><td class="num"><span class="tag green">85</span></td><td>周一</td></tr>
+          <tr><td class="num">2</td><td>2026-07-07</td><td class="num"><span class="tag blue">61</span></td><td>周二</td></tr>
+          <tr><td class="num">3</td><td>2026-06-11</td><td class="num"><span class="tag blue">60</span></td><td>周四</td></tr>
+          <tr><td class="num">4</td><td>2026-07-12</td><td class="num"><span class="tag orange">58</span></td><td>周日</td></tr>
+          <tr><td class="num">5</td><td>2026-05-08</td><td class="num"><span class="tag orange">55</span></td><td>周五</td></tr>        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 八、存储汇总 -->
+  <div class="section">
+    <h2 class="section-title">八、存储占用汇总 <span class="sub">总计 12.19 GB</span></h2>
+    <div class="card">
+      <div class="donut-container">
+        <div class="donut"></div>
+        <div class="donut-legend">
+          <div><span class="dot" style="background:#07c160"></span>聊天文件消息 5.14 GB (42.2%)</div>
+          <div><span class="dot" style="background:#576b95"></span>图片/语音附件 4.23 GB (34.7%)</div>
+          <div><span class="dot" style="background:#fa9d3b"></span>视频消息 2.09 GB (17.1%)</div>
+          <div><span class="dot" style="background:#4cc4d4"></span>缓存文件 0.46 GB (3.8%)</div>
+          <div><span class="dot" style="background:#e15f63"></span>加密数据库 0.27 GB (2.2%)</div>
+          <div><span class="dot" style="background:#ddd"></span>其他 ~0.15 GB (1.2%)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 九、关键发现与总结 -->
+  <div class="section">
+    <h2 class="section-title">九、关键发现与总结</h2>
+    <div class="card">
+      <div class="card-title">聊天画像</div>
+      <table>
+        <thead><tr><th>指标</th><th>结果</th><th>解读</th></tr></thead>
+        <tbody>
+          <tr><td>最活跃群聊</td><td><strong>RX 🦌 网购社 ⑥（9,452条）</strong></td><td>欣儿🎈（找券@我）一人发5,337条</td></tr>
+          <tr><td>发言人数最多群</td><td><strong>君邻大院竹苑业主群（201人发言）</strong></td><td>参与度最高的群</td></tr>
+          <tr><td>私聊最多</td><td><strong>若菡（9,861条）</strong></td><td>高频私聊对象</td></tr>
+          <tr><td>群聊最活跃的人</td><td><strong>欣儿🎈（找券@我）（5,337条，主要在《RX 🦌 网购社 ⑥》）</strong></td><td>跨所有群聊的发言统计</td></tr>
+          <tr><td>消息高峰时段</td><td><strong>11点（7,287条）</strong></td><td>上午沟通密集</td></tr>
+          <tr><td>消息最多月</td><td><strong>2026-06月（27,854条）</strong></td><td>工作沟通量最大的月份</td></tr>        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">工作画像</div>
+      <table>
+        <thead><tr><th>核心工作领域</th><th class="num">文件数</th><th>典型内容</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag green">管理报告</span></td><td class="num">530</td><td>市场部报告、一周活动安排、经分会材料</td></tr>
+          <tr><td><span class="tag blue">数据统计</span></td><td class="num">319</td><td>线上发展量统计、台账、汇总</td></tr>
+          <tr><td><span class="tag red">业务分析</span></td><td class="num">154</td><td>退订统计、移网净增、新入网</td></tr>
+          <tr><td><span class="tag orange">收入分析</span></td><td class="num">145</td><td>收入会审、核心平台收入、地市通报</td></tr>
+          <tr><td><span class="tag red">虚假业务</span></td><td class="num">62</td><td>群腐整治、违规处罚、终端核查</td></tr>
+          <tr><td><span class="tag">佣金结算</span></td><td class="num">45</td><td>佣金扣罚、结算承诺函、对账</td></tr>
+          <tr><td><span class="tag green">质检工作</span></td><td class="num">35</td><td>质检周报、听原声、新入网质检</td></tr>
+          <tr><td><span class="tag">检查审计</span></td><td class="num">12</td><td>集团检查、核查报告</td></tr>        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">工作节奏</div>
+      <ul style="list-style:none; font-size:14px; line-height:2.2">
+        <li> 日均处理约 <strong>23个文件</strong>、发送/接收约 <strong>809条消息</strong></li>
+        <li> 上午9-11点和下午16-18点为双重工作高峰</li>
+        <li> 周一最忙（文件+消息双高峰），周五收尾</li>
+        <li> "一周活动安排"出现 <strong>54个版本</strong>，核心迭代报表</li>
+        <li> 2026-06月消息量和工作文件量均为高峰，工作强度最大</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">技术突破记录</div>
+      <div class="callout"><span class="icon">i</span><strong>WCDB加密破解：</strong>微信4.1.11使用WCDB（SQLCipher 4兼容）加密，AES-256-CBC。通过编译Go版chatlog从微信进程内存提取32字节Data Key，并发现4.1.11跳过PBKDF2迭代的参数变更，自写Python脚本成功解密message_0.db。</div>
+      <div class="callout"><span class="icon">i</span><strong>WCDB压缩支持：</strong>39.6%的消息使用zstd压缩（WCDB内置），通过pyzstd库成功解压全部压缩消息，确保分析数据完整。</div>
+      <div class="callout warning"><span class="icon">!</span><strong>剩余数据库：</strong>message_0.db以外17个数据库可能使用不同的per-db密钥或加密参数，有待进一步研究。当前联系人映射使用5月18日旧版contact.db快照。</div>
+    </div>
+    <div class="card">
+      <div class="card-title">数据安全提醒</div>
+      <div class="callout warning"><span class="icon">!</span><strong>SIP状态：</strong>当前SIP已禁用（<code>csrutil disable</code>），建议尽快重新开启。恢复模式 → 终端 → <code>csrutil enable</code> → 重启</div>
+      <div class="callout warning"><span class="icon">!</span><strong>数据敏感性：</strong>12.2GB聊天数据包含大量工作敏感信息（收入数据、处罚通报、审计材料等），且已可完整解密读取，建议注意数据安全</div>
+      <div class="callout"><span class="icon">i</span><strong>大文件清理：</strong>7月单月文件体积达2831MB，可考虑清理历史附件释放空间</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    生成时间：2026-08-02 | 数据来源：~/Library/Containers/com.tencent.xinWeChat/ | 由微信数据库分析工具生成<br>
+    消息数据：2026-04-23 08:05 ~ 2026-08-02 19:25 | 联系人映射基于2026-05-18快照
+  </div>
+
+</div>
+</body>
+</html>
