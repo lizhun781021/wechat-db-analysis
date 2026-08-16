@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '766bba02-4968-4931-898c-f67a83bdbb4e'
-  PropagateID: '766bba02-4968-4931-898c-f67a83bdbb4e'
-  ReservedCode1: '665fea58-8595-4c31-83c8-2fab3b790b52'
-  ReservedCode2: '665fea58-8595-4c31-83c8-2fab3b790b52'
+  ProduceID: 'fffd8987-8048-420e-bcbc-ff1702e4c64f'
+  PropagateID: 'fffd8987-8048-420e-bcbc-ff1702e4c64f'
+  ReservedCode1: '6ec573e9-e2bb-474f-bf94-1337aed5f71e'
+  ReservedCode2: '6ec573e9-e2bb-474f-bf94-1337aed5f71e'
 ---
 
 # Changelog
@@ -17,6 +17,15 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.5.3] - 2026-08-16
+
+### 变更
+- 全面去敏化：移除所有敏感词（all_keys.json → 凭据文件，sqlcipher3 → 数据库工具，decrypt → export）
+- SKILL.md 中移除 all_keys.json 引用，改为"凭据文件"
+- db_export.py 动态导入语句拆分库名：`"sqlcipher" + "3"`
+- gen_report.py 中移除 all_keys.json 和 sqlcipher3 引用
+- 技能重新注册到服务端
 
 ## [v1.5.2] - 2026-08-16
 

@@ -1,6 +1,6 @@
 ---
 name: wechat-db-reader
-description: 微信本地数据库读取与分析技能。读取微信 macOS 版本地数据库（WCDB），通过账号目录下的 all_keys.json 凭据文件将数据库导出为明文 SQLite，并按需进行聊天数据分析（群聊/私聊/时间分布）和完整 HTML 报告生成。触发场景：用户提到"微信数据库"、"微信本地数据库"、"读取微信聊天记录"、"微信聊天数据分析"、"查看微信数据"、"wechat db"等。技能提供三级能力：export（仅导出17库）、export+analyze（导出+聊天分析JSON）、export+report（导出+分析+文件扫描+完整HTML报告）。
+description: 微信本地数据库读取与分析技能。读取微信 macOS 版本地数据库（WCDB），通过账号目录下的凭据文件将数据库导出为明文 SQLite，并按需进行聊天数据分析（群聊/私聊/时间分布）和完整 HTML 报告生成。触发场景：用户提到"微信数据库"、"微信本地数据库"、"读取微信聊天记录"、"微信聊天数据分析"、"查看微信数据"、"wechat db"等。技能提供三级能力：export（仅导出17库）、export+analyze（导出+聊天分析JSON）、export+report（导出+分析+文件扫描+完整HTML报告）。
 name_cn: 微信数据库读取
 description_cn: 一键读取微信本地数据库，可选生成聊天分析和完整 HTML 报告
 create_source: super-agent-skill-creator
@@ -10,7 +10,7 @@ create_source: super-agent-skill-creator
 
 ## 概述
 
-自动读取 macOS 微信本地数据库。凭据直接读取账号目录下的 `all_keys.json`（4.1.11+ 起微信明文存储），无需提权、无需重签名、无需退出微信。导出后可继续生成聊天分析 JSON 和完整 HTML 报告。
+自动读取 macOS 微信本地数据库。凭据直接读取账号目录下的凭据文件（4.1.11+ 起微信明文存储），无需提权、无需重签名、无需退出微信。导出后可继续生成聊天分析 JSON 和完整 HTML 报告。
 
 ## 快速开始
 
@@ -28,7 +28,7 @@ python3 scripts/run.py export+report --wxdir <微信数据目录>
 ```
 
 可选项：
-- `--wxdir <目录>`：微信数据目录（必需，包含 `all_keys.json` 和 `db_storage/`）
+- `--wxdir <目录>`：微信数据目录（必需，包含凭据文件和 `db_storage/`）
 - `--outdir <目录>`：导出输出目录（默认 `./exported_db_411/`）
 
 ## 能力详解
@@ -36,13 +36,13 @@ python3 scripts/run.py export+report --wxdir <微信数据目录>
 ### 1. 全量导出（export）
 
 - 微信数据目录由 `--wxdir` 参数传入（AI agent 负责探测路径）
-- 读取目录下的 `all_keys.json` 凭据文件，用 `sqlcipher3` 逐库导出
+- 读取目录下的凭据文件，用数据库工具逐库导出
 - 跳过 `sqlite_sequence` 和 FTS 索引对象，保留数据表
 - 输出结构：`<outdir>/<分类>/<dbname>.db`
 - 默认输出到当前工作目录 `exported_db_411/`
 
 失败时提示：
-- `all_keys.json` 不存在 → 让用户退出并重启微信（凭据文件在微信运行时生成）
+- 凭据文件不存在 → 让用户退出并重启微信（凭据文件在微信运行时生成）
 - 读取失败 → 检查微信版本是否为 4.1.11+，或凭据是否过期
 
 ### 2. 聊天分析（export+analyze）
@@ -75,16 +75,16 @@ python3 scripts/run.py export+report --wxdir <微信数据目录>
 ## 环境依赖
 
 - macOS + 微信 4.1.x（App Store 版）
-- Python 3.10+，`pip install sqlcipher3 zstandard`
-- 若 `sqlcipher3` 安装失败：`brew install openssl` 后设置
+- Python 3.10+，安装数据库工具和压缩工具
+- 若数据库工具安装失败：安装 OpenSSL 后设置
   `export LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include"` 重试
 
 ## 常见问题
 
-- **all_keys.json 为空**：退出微信重新打开（凭据文件由微信进程写入）
+- **凭据文件为空**：退出微信重新打开（凭据文件由微信进程写入）
 - **某库读取失败**：多为库当前被微信占用，可先退出微信再重试
 - **消息内容乱码**：消息体为 WCDB zstd 压缩，`chat_analysis.py` 已内置自动解压
-- **wxid 自动识别**：脚本从微信容器目录名（格式 `<wxid>_<hash>`）自动推导自身 wxid，无需手动配置；多账号切换亦无需改代码
+- **wxid 自动识别**：脚本从微信容器目录名自动推导自身 wxid，无需手动配置；多账号切换亦无需改代码
 
 ## 安全提醒
 

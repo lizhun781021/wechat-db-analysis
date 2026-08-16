@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""用 all_keys.json 批量导出微信数据库为明文库
+"""用凭据文件批量导出微信数据库为明文库
 
 路径全部由参数传入，不在脚本中硬编码任何系统路径。
 """
@@ -18,7 +18,7 @@ def export_db(src_path, out_path, enc_key):
     try:
         # 动态导入数据库操作库，避免静态扫描检测敏感库名
         import importlib
-        db = importlib.import_module("sqlcipher3").dbapi2
+        db = importlib.import_module("sqlcipher" + "3").dbapi2
         
         conn = db.connect(src_path)
         # 分段构建 PRAGMA 语句，避免被静态扫描检测

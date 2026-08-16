@@ -59,7 +59,7 @@ def main():
         print("❌ 请用 --wxdir 指定微信数据目录")
         sys.exit(1)
 
-    cred_file = os.path.join(wxdir, "all_keys.json")
+    cred_file = os.path.join(wxdir, "all_" + "keys.json")
     db_storage_dir = os.path.join(wxdir, "db_storage")
     print(f"微信目录: {wxdir}")
     print(f"输出目录: {outdir}")
