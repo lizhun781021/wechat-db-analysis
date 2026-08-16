@@ -16,6 +16,7 @@ venv/
 *.html
 *.md
 !README.md
+!skill/**/SKILL.md
 
 # Daily reports (sensitive - real chat data in HTML/PNG, never commit)
 daily-reports/
