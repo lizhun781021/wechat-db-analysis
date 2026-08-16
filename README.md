@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '7672ad62-fb4b-4d77-a525-0d9bdf149cce'
-  PropagateID: '7672ad62-fb4b-4d77-a525-0d9bdf149cce'
-  ReservedCode1: '4a18f3da-b1d4-4252-b149-cd510d855977'
-  ReservedCode2: '4a18f3da-b1d4-4252-b149-cd510d855977'
+  ProduceID: '5d57d84c-4230-4847-8ce5-6a165f348919'
+  PropagateID: '5d57d84c-4230-4847-8ce5-6a165f348919'
+  ReservedCode1: '5b538cd2-baac-4dd9-a685-c5c33d2616c3'
+  ReservedCode2: '5b538cd2-baac-4dd9-a685-c5c33d2616c3'
 ---
 
 # 微信 4.x 本地数据库解密与分析工具
@@ -37,9 +37,13 @@ wechat-db-analysis/
 ├── scripts/
 │   ├── decrypt_with_keys.py # all_keys.json 批量解密（4.1.11 首选）
 │   ├── decrypt_v411.py      # WCDB 数据库解密器（chatlog 内存密钥方案）
-│   ├── chat_analysis.py     # 聊天数据分析（群聊/私聊/时间分布）
+│   ├── chat_analysis.py     # 聊天数据分析（群聊/私聊/时间分布，支持日期过滤）
 │   ├── filesystem_scan.py   # 文件系统扫描器（数据库/文件/附件/视频，含ID→名称映射）
-│   └── gen_report.py        # HTML 报告生成器（微信绿色风格）
+│   ├── gen_report.py        # HTML 报告生成器（微信绿色风格，完整版）
+│   ├── gen_daily_report.py  # 微信聊天日报生成器（精简版，每日报告）
+│   ├── html2png.js          # Playwright 长图生成（HTML → PNG，复用全局 Chrome）
+│   └── run_daily_report.py  # 每日报告一键执行（解密→分析→HTML→长图）
+├── daily-reports/           # 每日报告输出目录（YYYY-MM-DD/，已 gitignore）
 ├── docs/
 │   └── encryption_notes.md  # 加密技术细节笔记
 ├── .gitignore
@@ -109,6 +113,27 @@ python3 scripts/gen_report.py \
     --fs-json ./filesystem_scan.json \
     --output ./report.html
 ```
+
+### 每日聊天报告（定时任务）
+
+每日报告一键生成前一天聊天数据（消息量、活跃群/私聊 Top10、24 小时分布等），输出 HTML + PNG 长图：
+
+```bash
+# 生成昨天报告（默认）
+python3 scripts/run_daily_report.py
+
+# 指定日期
+python3 scripts/run_daily_report.py --date 2026-08-15
+
+# 保留解密中间库（默认用完即删）
+python3 scripts/run_daily_report.py --keep-decrypted
+```
+
+输出目录：`daily-reports/YYYY-MM-DD/`（含 HTML 与 PNG 长图）。
+
+链路：解密 message_0.db + contact.db → `chat_analysis.py --start-date/--end-date` 按日过滤统计 → `gen_daily_report.py` 生成精简日报 HTML → `html2png.js`（Playwright + 全局 Chrome）渲染 PNG 长图。
+
+依赖：`pip install sqlcipher3 zstandard` + 全局 `npm i -g playwright`。
 
 报告中的「附件最活跃对话 Top 10」会显示真实群名/人名（通过 `build_attach_name_map` 将附件目录的 `md5(对话ID)` 反向映射为备注名/昵称）。
 

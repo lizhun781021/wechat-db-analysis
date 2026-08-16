@@ -17,6 +17,12 @@ venv/
 *.md
 !README.md
 
+# Daily reports (sensitive - real chat data in HTML/PNG, never commit)
+daily-reports/
+
+# Screenshots (sensitive)
+企业微信截图*.png
+
 # OS files
 .DS_Store
 Thumbs.db

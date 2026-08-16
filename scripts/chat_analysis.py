@@ -12,7 +12,7 @@
 支持WCDB zstd压缩消息的自动解压。
 
 用法：
-    python3 chat_analysis.py --msg-db <message_0.db路径> --contact-db <contact.db路径> --my-wxid <你的wxid>
+    python3 chat_analysis.py --msg-db <msg.db路径> --contact-db <contact.db路径> --my-wxid <你的wxid>
 
 示例：
     python3 chat_analysis.py \
@@ -20,6 +20,10 @@
         --contact-db ./contact.db \
         --my-wxid your_wxid \
         --output ./analysis_result.json
+
+日期过滤（可选）：
+    --start-date 2026-08-15  --end-date 2026-08-15  # 只统计指定日期范围（含两端）
+    不传日期参数时统计全量数据，保持向后兼容。
 
 依赖：
     pip install zstandard
@@ -51,6 +55,31 @@ MSG_TYPES = {
 
 # zstd解压器
 dctx = zstandard.ZstdDecompressor()
+
+
+def parse_date_range(start_date, end_date):
+    """解析日期范围，返回 (start_ts, end_ts) Unix 时间戳（含两端，含整天）"""
+    start_ts = None
+    end_ts = None
+    if start_date:
+        dt = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        start_ts = int(dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp())
+    if end_date:
+        dt = datetime.datetime.strptime(end_date, '%Y-%m-%d')
+        end_ts = int(dt.replace(hour=23, minute=59, second=59, microsecond=0).timestamp())
+    return start_ts, end_ts
+
+
+def date_filter(start_ts, end_ts):
+    """根据时间范围生成 (条件列表, 参数列表)，便于拼接 SQL WHERE 子句"""
+    conds, params = [], []
+    if start_ts is not None:
+        conds.append("create_time >= ?")
+        params.append(start_ts)
+    if end_ts is not None:
+        conds.append("create_time <= ?")
+        params.append(end_ts)
+    return conds, params
 
 
 def decompress_content(content, wcdb_ct):
@@ -123,7 +152,7 @@ def build_session_map(msg_db):
     return sessions
 
 
-def analyze_chatrooms(msg_db, sessions, name_map):
+def analyze_chatrooms(msg_db, sessions, name_map, start_ts=None, end_ts=None):
     """分析群聊活跃度
     
     返回:
@@ -142,25 +171,30 @@ def analyze_chatrooms(msg_db, sessions, name_map):
     # 每个发送者 -> {群名: 消息数} 的映射
     sender_chatrooms = defaultdict(lambda: Counter())
 
+    # 日期过滤条件
+    conds, params = date_filter(start_ts, end_ts)
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+
     for username in chatroom_users:
         table = sessions[username]['table']
         try:
-            cur.execute(f"SELECT COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`")
+            cur.execute(f"SELECT COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`{where}", params)
             total, min_time, max_time = cur.fetchone()
             if total == 0:
                 continue
 
             # 统计各类型消息数
-            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}` GROUP BY local_type ORDER BY COUNT(*) DESC")
+            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}`{where} GROUP BY local_type ORDER BY COUNT(*) DESC", params)
             type_counts = {get_msg_type_name(lt): c for lt, c in cur.fetchall()}
 
             # 统计群内发送者（仅文字消息，从content提取wxid）
             # 群聊消息格式: "wxid_xxx:\n实际内容"
+            sender_conds = ["local_type = 1"] + conds
+            sender_where = (" WHERE " + " AND ".join(sender_conds)) if sender_conds else ""
             cur.execute(f"""
                 SELECT message_content, WCDB_CT_message_content 
-                FROM `{table}` 
-                WHERE local_type = 1
-            """)
+                FROM `{table}`{sender_where}
+            """, params)
             room_senders = Counter()
             for content, wcdb_ct in cur.fetchall():
                 text = decompress_content(content, wcdb_ct)
@@ -199,7 +233,7 @@ def analyze_chatrooms(msg_db, sessions, name_map):
     return chatroom_stats, sender_counter, sender_chatrooms
 
 
-def analyze_private_chats(msg_db, sessions, name_map):
+def analyze_private_chats(msg_db, sessions, name_map, start_ts=None, end_ts=None):
     """分析私聊频次
     
     私聊username不含@chatroom和@openim。
@@ -211,15 +245,19 @@ def analyze_private_chats(msg_db, sessions, name_map):
 
     private_stats = []
 
+    # 日期过滤条件
+    conds, params = date_filter(start_ts, end_ts)
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+
     for username in private_users:
         table = sessions[username]['table']
         try:
-            cur.execute(f"SELECT COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`")
+            cur.execute(f"SELECT COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`{where}", params)
             total, min_time, max_time = cur.fetchone()
             if total == 0:
                 continue
 
-            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}` GROUP BY local_type ORDER BY COUNT(*) DESC")
+            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}`{where} GROUP BY local_type ORDER BY COUNT(*) DESC", params)
             type_counts = {get_msg_type_name(lt): c for lt, c in cur.fetchall()}
 
             display_name = name_map.get(username, username)
@@ -243,7 +281,7 @@ def analyze_private_chats(msg_db, sessions, name_map):
     return private_stats
 
 
-def analyze_time_distribution(msg_db, sessions):
+def analyze_time_distribution(msg_db, sessions, start_ts=None, end_ts=None):
     """分析消息时间分布：小时、星期、月份、日"""
     conn = sqlite3.connect(msg_db)
     cur = conn.cursor()
@@ -253,10 +291,14 @@ def analyze_time_distribution(msg_db, sessions):
     monthly_dist = defaultdict(int)
     daily_dist = defaultdict(int)
 
+    # 日期过滤条件
+    conds, params = date_filter(start_ts, end_ts)
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+
     for username, info in sessions.items():
         table = info['table']
         try:
-            cur.execute(f"SELECT create_time FROM `{table}`")
+            cur.execute(f"SELECT create_time FROM `{table}`{where}", params)
             for (ts,) in cur.fetchall():
                 if ts:
                     dt = datetime.datetime.fromtimestamp(ts)
@@ -280,7 +322,7 @@ def analyze_time_distribution(msg_db, sessions):
     }
 
 
-def analyze_overall(msg_db, sessions):
+def analyze_overall(msg_db, sessions, start_ts=None, end_ts=None):
     """总体统计：总消息数、群聊数、私聊数、时间范围、类型分布"""
     conn = sqlite3.connect(msg_db)
     cur = conn.cursor()
@@ -293,10 +335,14 @@ def analyze_overall(msg_db, sessions):
     min_time = 9999999999
     max_time = 0
 
+    # 日期过滤条件
+    conds, params = date_filter(start_ts, end_ts)
+    where = (" WHERE " + " AND ".join(conds)) if conds else ""
+
     for username, info in sessions.items():
         table = info['table']
         try:
-            cur.execute(f"SELECT local_type, COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}` GROUP BY local_type")
+            cur.execute(f"SELECT local_type, COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`{where} GROUP BY local_type", params)
             for lt, c, mn, mx in cur.fetchall():
                 total_messages += c
                 all_types[get_msg_type_name(lt)] += c
@@ -327,6 +373,8 @@ def main():
     parser.add_argument("--contact-db", required=True, help="contact.db路径（联系人映射）")
     parser.add_argument("--my-wxid", required=True, help="你自己的wxid（用于排除自己）")
     parser.add_argument("--output", default="analysis_result.json", help="输出JSON文件路径")
+    parser.add_argument("--start-date", default=None, help="起始日期 YYYY-MM-DD（可选，过滤统计范围）")
+    parser.add_argument("--end-date", default=None, help="结束日期 YYYY-MM-DD（可选，过滤统计范围）")
     args = parser.parse_args()
 
     msg_db = os.path.expanduser(args.msg_db)
@@ -336,7 +384,12 @@ def main():
     print("=== 微信聊天分析 ===")
     print(f"数据源: {msg_db}")
     print(f"联系人映射: {contact_db}")
+    if args.start_date or args.end_date:
+        print(f"统计范围: {args.start_date or '最早'} ~ {args.end_date or '最近'}")
     print()
+
+    # 解析日期范围
+    start_ts, end_ts = parse_date_range(args.start_date, args.end_date)
 
     # 1. 构建映射
     print("构建联系人映射...")
@@ -349,13 +402,13 @@ def main():
 
     # 2. 总体统计
     print("\n计算总体统计...")
-    overall = analyze_overall(msg_db, sessions)
+    overall = analyze_overall(msg_db, sessions, start_ts, end_ts)
     print(f"  总消息: {overall['total_messages']}")
     print(f"  时间范围: {overall['time_range'][0]} ~ {overall['time_range'][1]}")
 
     # 3. 群聊分析
     print("\n分析群聊活跃度...")
-    chatroom_stats, sender_counter, sender_chatrooms = analyze_chatrooms(msg_db, sessions, name_map)
+    chatroom_stats, sender_counter, sender_chatrooms = analyze_chatrooms(msg_db, sessions, name_map, start_ts, end_ts)
     print(f"  群聊数: {len(chatroom_stats)}")
     print(f"  Top 3群聊:")
     for c in chatroom_stats[:3]:
@@ -380,7 +433,7 @@ def main():
 
     # 4. 私聊分析
     print("\n分析私聊频次...")
-    private_stats = analyze_private_chats(msg_db, sessions, name_map)
+    private_stats = analyze_private_chats(msg_db, sessions, name_map, start_ts, end_ts)
     print(f"  私聊数: {len(private_stats)}")
     print(f"  Top 3私聊:")
     for p in private_stats[:3]:
@@ -388,7 +441,7 @@ def main():
 
     # 5. 时间分布
     print("\n分析时间分布...")
-    time_dist = analyze_time_distribution(msg_db, sessions)
+    time_dist = analyze_time_distribution(msg_db, sessions, start_ts, end_ts)
     print(f"  最活跃小时: {max(time_dist['hourly'], key=lambda x: x['count'])['hour']}点")
     print(f"  最活跃月份: {max(time_dist['monthly'], key=lambda x: x['count'])['month']}")
 
