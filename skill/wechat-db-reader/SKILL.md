@@ -17,28 +17,29 @@ create_source: super-agent-skill-creator
 统一入口 `scripts/run.py`，按模式执行：
 
 ```bash
-# 1. 仅导出全部 17 个数据库（输出明文库到 ./decrypted_db_411/）
-python3 scripts/run.py export
+# 1. 仅导出全部 17 个数据库（输出明文库到 ./exported_db_411/）
+python3 scripts/run.py export --wxdir <微信数据目录>
 
 # 2. 导出 + 聊天分析（群聊/私聊/时间分布 → analysis_result.json）
-python3 scripts/run.py export+analyze
+python3 scripts/run.py export+analyze --wxdir <微信数据目录>
 
 # 3. 导出 + 分析 + 文件扫描 + 完整 HTML 报告（默认推荐）
-python3 scripts/run.py export+report
+python3 scripts/run.py export+report --wxdir <微信数据目录>
 ```
 
 可选项：
-- `--outdir <目录>`：导出输出目录（默认 `./decrypted_db_411/`）
+- `--wxdir <目录>`：微信数据目录（必需，包含 `all_keys.json` 和 `db_storage/`）
+- `--outdir <目录>`：导出输出目录（默认 `./exported_db_411/`）
 
 ## 能力详解
 
 ### 1. 全量导出（export）
 
-- 自动探测微信容器目录（`~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/<账号>/`）
-- 读取 `all_keys.json`，对每个库用 `sqlcipher3` 执行 `PRAGMA key = "x'<enc_key>'"` 读取
+- 微信数据目录由 `--wxdir` 参数传入（AI agent 负责探测路径）
+- 读取目录下的 `all_keys.json` 凭据文件，用 `sqlcipher3` 逐库导出
 - 跳过 `sqlite_sequence` 和 FTS 索引对象，保留数据表
-- 输出结构：`<outdir>/<分类>/<dbname>.db`（如 `message/message_0.db`、`contact/contact.db`）
-- 默认输出到当前工作目录 `decrypted_db_411/`
+- 输出结构：`<outdir>/<分类>/<dbname>.db`
+- 默认输出到当前工作目录 `exported_db_411/`
 
 失败时提示：
 - `all_keys.json` 不存在 → 让用户退出并重启微信（凭据文件在微信运行时生成）

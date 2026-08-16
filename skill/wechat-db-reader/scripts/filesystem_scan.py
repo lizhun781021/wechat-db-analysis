@@ -17,7 +17,7 @@
 
 示例：
     python3 filesystem_scan.py \
-        --data-dir ~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/<your_account> \
+        --data-dir <微信数据目录> \
         --output ./filesystem_scan.json
 
 无第三方依赖，仅使用标准库。

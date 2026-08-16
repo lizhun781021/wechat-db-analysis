@@ -8,81 +8,65 @@
   3. export+report   导出 + 分析 + 文件扫描 + 完整 HTML 报告
 
 用法：
-    python3 run.py export                     # 仅导出
-    python3 run.py export+analyze             # 导出 + 分析
-    python3 run.py export+report              # 导出 + 完整报告（默认）
+    python3 run.py export --wxdir <微信目录> --outdir <输出目录>
+    python3 run.py export+analyze --wxdir <微信目录> --outdir <输出目录>
+    python3 run.py export+report --wxdir <微信目录> --outdir <输出目录>
 
-选项：
-    --outdir <目录>     导出输出目录（默认 exported_db_411/）
+所有路径由参数传入，脚本不硬编码任何系统路径。
 """
 
 import os
 import sys
+import json
+import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 
-import json
-import datetime
 import db_export
 import chat_analysis
 import filesystem_scan
 import gen_report
 
-DEFAULT_OUTDIR = os.path.join(os.getcwd(), "exported_db_411")
 MODES = ("export", "export+analyze", "export+report")
 
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] not in MODES:
-        print(f"用法: python3 run.py [{'|'.join(MODES)}]")
+        print(f"用法: python3 run.py [{'|'.join(MODES)}] --wxdir <微信目录> [--outdir <输出目录>]")
         print("  示例:")
-        print("    python3 run.py export            # 仅导出 17 库")
-        print("    python3 run.py export+analyze    # 导出 + 聊天分析")
-        print("    python3 run.py export+report     # 导出 + 完整报告")
+        print("    python3 run.py export --wxdir /path/to/wechat --outdir ./out")
+        print("    python3 run.py export+analyze --wxdir /path/to/wechat --outdir ./out")
+        print("    python3 run.py export+report --wxdir /path/to/wechat --outdir ./out")
         sys.exit(1)
 
     mode = sys.argv[1]
-    outdir = DEFAULT_OUTDIR
-    if "--outdir" in sys.argv:
-        idx = sys.argv.index("--outdir")
-        if idx + 1 < len(sys.argv):
-            outdir = os.path.expanduser(sys.argv[idx + 1])
 
-    # 自动探测微信目录与自身 wxid
-    wxdir = db_export.detect_wxdir()
+    # 解析参数
+    wxdir = None
+    outdir = os.path.join(os.getcwd(), "exported_db_411")
+    args = sys.argv[2:]
+    if "--wxdir" in args:
+        idx = args.index("--wxdir")
+        if idx + 1 < len(args):
+            wxdir = os.path.expanduser(args[idx + 1])
+    if "--outdir" in args:
+        idx = args.index("--outdir")
+        if idx + 1 < len(args):
+            outdir = os.path.expanduser(args[idx + 1])
+
     if not wxdir:
-        print("❌ 未找到微信容器目录，请确认微信已安装并登录")
+        print("❌ 请用 --wxdir 指定微信数据目录")
         sys.exit(1)
-    my_wxid = db_export.detect_my_wxid(wxdir)
+
+    cred_file = os.path.join(wxdir, "all_keys.json")
+    db_storage_dir = os.path.join(wxdir, "db_storage")
     print(f"微信目录: {wxdir}")
-    print(f"账号 wxid: {my_wxid or '(未识别，分析时使用空值)'}")
+    print(f"输出目录: {outdir}")
 
     # 1. 导出
     print(f"\n== 导出全部数据库 → {outdir} ==")
-    db_export.WXDIR = wxdir
-    db_export.CRED_FILE = os.path.join(wxdir, "all_keys.json")
-    db_export.OUTDIR = outdir
-    cred_file = db_export.CRED_FILE
-    print(f"凭据文件: {cred_file}")
-    print(f"输出目录: {outdir}")
-    if not os.path.isfile(cred_file):
-        print(f"❌ 凭据文件不存在: {cred_file}")
-        print("   请先确认微信已登录并重启（all_keys.json 在账号目录下）")
-        sys.exit(1)
-    with open(cred_file) as f:
-        keys = json.load(f)
-    ok = fail = 0
-    for dbname, info in keys.items():
-        s, msg = db_export.export_db(dbname, info)
-        print(f"[{'OK' if s else 'FAIL'}] {dbname}: {msg}")
-        if s:
-            ok += 1
-        else:
-            fail += 1
-    print(f"\n成功 {ok}/{len(keys)}, 失败 {fail}")
-    if fail:
-        sys.exit(1)
+    db_export.run_export(cred_file, db_storage_dir, outdir)
 
     if mode == "export":
         print("\n✅ 导出完成")
@@ -107,8 +91,6 @@ def main():
     chatroom_stats, sender_counter, sender_chatrooms = chat_analysis.analyze_chatrooms(msg_db, sessions, name_map, start_ts, end_ts)
     top_senders_overall = []
     for s, c in sender_counter.most_common(30):
-        if s == (my_wxid or ''):
-            continue
         top_chatroom = sender_chatrooms[s].most_common(1)
         chatroom_name = top_chatroom[0][0] if top_chatroom else '未知'
         chatroom_count = top_chatroom[0][1] if top_chatroom else 0

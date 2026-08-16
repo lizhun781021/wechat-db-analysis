@@ -1,59 +1,32 @@
 #!/usr/bin/env python3
-"""用 all_keys.json 批量导出微信数据库为明文库"""
+"""用 all_keys.json 批量导出微信数据库为明文库
+
+路径全部由参数传入，不在脚本中硬编码任何系统路径。
+"""
 import json
 import os
 import sys
 from sqlcipher3 import dbapi2 as db
 
-# 默认值（可通过命令行参数覆盖；微信目录自动探测）
-WXDIR = None
-OUTDIR = os.path.join(os.getcwd(), "exported_db_411")
-CRED_FILE = None
 
-
-def detect_wxdir():
-    """自动探测微信容器目录：优先包含 all_keys.json 的目录"""
-    base = os.path.expanduser("~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files")
-    if not os.path.isdir(base):
-        return None
-    for name in sorted(os.listdir(base)):
-        p = os.path.join(base, name)
-        if os.path.isfile(os.path.join(p, "all_keys.json")):
-            return p
-    for name in sorted(os.listdir(base)):
-        p = os.path.join(base, name)
-        if os.path.isdir(p) and not name.startswith('.'):
-            return p
-    return None
-
-
-def detect_my_wxid(wxdir):
-    """从微信容器目录名推导自身 wxid（目录名格式: <wxid>_<hash>）"""
-    if not wxdir:
-        return None
-    return os.path.basename(wxdir).split('_')[0] or None
-
-
-def export_db(dbname, info):
-    src = os.path.join(WXDIR, "db_storage", dbname)
-    out = os.path.join(OUTDIR, dbname)
-    if not os.path.exists(src):
+def export_db(src_path, out_path, enc_key):
+    """导出单个数据库"""
+    if not os.path.exists(src_path):
         return False, "missing"
-    os.makedirs(os.path.dirname(out), exist_ok=True)
-    if os.path.exists(out):
-        os.remove(out)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    if os.path.exists(out_path):
+        os.remove(out_path)
     try:
-        conn = db.connect(src)
-        conn.execute(f"PRAGMA key = \"x'{info['enc_key']}'\"")
+        conn = db.connect(src_path)
+        conn.execute(f"PRAGMA key = \"x'{enc_key}'\"")
         conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         conn.row_factory = db.Row
 
-        dest = db.connect(out)
+        dest = db.connect(out_path)
         rows = conn.execute("SELECT type, name, sql FROM sqlite_master ORDER BY rowid").fetchall()
         for r in rows:
             if not r['sql']:
                 continue
-            # 跳过 sqlite_sequence 和 FTS 相关对象
             if 'sqlite_sequence' in r['name'] or 'FTS' in r['name'].upper() or 'MMFtsTokenizer' in r['sql']:
                 continue
             try:
@@ -86,55 +59,39 @@ def export_db(dbname, info):
         return False, str(e)[:100]
 
 
-def main():
-    import argparse
-    parser = argparse.ArgumentParser(description="用 all_keys.json 批量导出微信数据库")
-    parser.add_argument("--outdir", default=None, help="输出目录（默认: exported_db_411）")
-    parser.add_argument("--wxdir", default=None, help="微信容器目录（默认自动探测）")
-    args = parser.parse_args()
-
-    global WXDIR, OUTDIR, CRED_FILE
-    if args.wxdir:
-        WXDIR = args.wxdir
-        CRED_FILE = os.path.join(WXDIR, "all_keys.json")
-    else:
-        detected = detect_wxdir()
-        if detected:
-            WXDIR = detected
-            CRED_FILE = os.path.join(WXDIR, "all_keys.json")
-            print(f"自动探测微信目录: {WXDIR}")
-        else:
-            print("❌ 未找到微信容器目录，请用 --wxdir 指定")
-            sys.exit(1)
-    if args.outdir:
-        OUTDIR = os.path.expanduser(args.outdir)
-
-    # 打印探测到的自身 wxid（供上层脚本识别）
-    wxid = detect_my_wxid(WXDIR)
-    if wxid:
-        print(f"检测到账号 wxid: {wxid}")
-
-    if not os.path.isfile(CRED_FILE):
-        print(f"❌ 凭据文件不存在: {CRED_FILE}")
-        print("   请先确认微信已登录并重启（all_keys.json 在账号目录下）")
+def run_export(cred_file, db_storage_dir, outdir):
+    """编程入口：凭据文件路径、数据库存储目录、输出目录均由调用方传入"""
+    if not os.path.isfile(cred_file):
+        print(f"❌ 凭据文件不存在: {cred_file}")
         sys.exit(1)
 
-    print(f"凭据文件: {CRED_FILE}")
-    print(f"输出目录: {OUTDIR}")
+    print(f"凭据文件: {cred_file}")
+    print(f"输出目录: {outdir}")
     print()
-    with open(CRED_FILE) as f:
+    with open(cred_file) as f:
         keys = json.load(f)
     ok = fail = 0
-    for dbname, info in keys.items():
-        s, msg = export_db(dbname, info)
+    for dbname in keys:
+        src = os.path.join(db_storage_dir, dbname)
+        out = os.path.join(outdir, dbname)
+        enc_key = keys[dbname]['enc_key']
+        s, msg = export_db(src, out, enc_key)
         print(f"[{'OK' if s else 'FAIL'}] {dbname}: {msg}")
-        if s:
-            ok += 1
-        else:
-            fail += 1
+        ok += 1 if s else 0
+        fail += 0 if s else 1
     print(f"\n成功 {ok}/{len(keys)}, 失败 {fail}")
     if fail:
         sys.exit(1)
+
+
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="批量导出微信数据库")
+    parser.add_argument("--cred-file", required=True, help="凭据文件路径")
+    parser.add_argument("--db-dir", required=True, help="数据库存储目录")
+    parser.add_argument("--outdir", required=True, help="输出目录")
+    args = parser.parse_args()
+    run_export(args.cred_file, args.db_dir, args.outdir)
 
 
 if __name__ == "__main__":

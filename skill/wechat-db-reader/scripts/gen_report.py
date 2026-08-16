@@ -865,7 +865,7 @@ def generate_html(chat_data, fs_data):
   </div>
 
   <div class="footer">
-    生成时间：{datetime.datetime.now().strftime('%Y-%m-%d')} | 数据来源：~/Library/Containers/com.tencent.xinWeChat/ | 由微信数据库分析工具生成<br>
+    生成时间：{datetime.datetime.now().strftime('%Y-%m-%d')} | 由微信数据库分析工具生成<br>
     消息数据：{overall['time_range'][0]} ~ {overall['time_range'][1]} | 联系人映射基于本次导出的真实 contact.db
   </div>
 
