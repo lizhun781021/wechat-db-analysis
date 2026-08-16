@@ -194,10 +194,10 @@ def scan_files_by_type(data_dir, subdir, file_types=None):
 def build_attach_name_map(data_dir):
     """构建 md5(username) -> display_name 映射，用于附件目录ID转名"""
     name_map = {}
-    # 从解密后的 contact.db 构建映射（与 data_dir 同级的 decrypted 目录）
-    # 先看 data_dir/db_storage 下有没有解密后的 contact.db
+    # 从导出后的 contact.db 构建映射
+    # 优先查找已导出的 contact.db
     candidates = [
-        os.path.join(os.getcwd(), "decrypted_db_411", "contact", "contact.db"),
+        os.path.join(os.getcwd(), "exported_db_411", "contact", "contact.db"),
         os.path.join(data_dir, "db_storage", "contact.db"),
     ]
     contact_db = None

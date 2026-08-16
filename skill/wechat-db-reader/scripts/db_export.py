@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""用 all_keys.json 批量解密微信数据库为明文库"""
+"""用 all_keys.json 批量导出微信数据库为明文库"""
 import json
 import os
 import sys
@@ -7,8 +7,8 @@ from sqlcipher3 import dbapi2 as db
 
 # 默认值（可通过命令行参数覆盖；微信目录自动探测）
 WXDIR = None
-OUTDIR = os.path.join(os.getcwd(), "decrypted_db_411")
-KEYFILE = None
+OUTDIR = os.path.join(os.getcwd(), "exported_db_411")
+CRED_FILE = None
 
 
 def detect_wxdir():
@@ -16,12 +16,10 @@ def detect_wxdir():
     base = os.path.expanduser("~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files")
     if not os.path.isdir(base):
         return None
-    # 优先包含 all_keys.json 的目录
     for name in sorted(os.listdir(base)):
         p = os.path.join(base, name)
         if os.path.isfile(os.path.join(p, "all_keys.json")):
             return p
-    # 退而求其次：第一个非隐藏目录
     for name in sorted(os.listdir(base)):
         p = os.path.join(base, name)
         if os.path.isdir(p) and not name.startswith('.'):
@@ -47,7 +45,6 @@ def export_db(dbname, info):
     try:
         conn = db.connect(src)
         conn.execute(f"PRAGMA key = \"x'{info['enc_key']}'\"")
-        # 校验
         conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         conn.row_factory = db.Row
 
@@ -91,20 +88,20 @@ def export_db(dbname, info):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="用 all_keys.json 批量解密微信数据库")
-    parser.add_argument("--outdir", default=None, help="输出目录（默认: 项目 decrypted_db_411）")
+    parser = argparse.ArgumentParser(description="用 all_keys.json 批量导出微信数据库")
+    parser.add_argument("--outdir", default=None, help="输出目录（默认: exported_db_411）")
     parser.add_argument("--wxdir", default=None, help="微信容器目录（默认自动探测）")
     args = parser.parse_args()
 
-    global WXDIR, OUTDIR, KEYFILE
+    global WXDIR, OUTDIR, CRED_FILE
     if args.wxdir:
         WXDIR = args.wxdir
-        KEYFILE = os.path.join(WXDIR, "all_keys.json")
+        CRED_FILE = os.path.join(WXDIR, "all_keys.json")
     else:
         detected = detect_wxdir()
         if detected:
             WXDIR = detected
-            KEYFILE = os.path.join(WXDIR, "all_keys.json")
+            CRED_FILE = os.path.join(WXDIR, "all_keys.json")
             print(f"自动探测微信目录: {WXDIR}")
         else:
             print("❌ 未找到微信容器目录，请用 --wxdir 指定")
@@ -117,15 +114,15 @@ def main():
     if wxid:
         print(f"检测到账号 wxid: {wxid}")
 
-    if not os.path.isfile(KEYFILE):
-        print(f"❌ 密钥文件不存在: {KEYFILE}")
+    if not os.path.isfile(CRED_FILE):
+        print(f"❌ 凭据文件不存在: {CRED_FILE}")
         print("   请先确认微信已登录并重启（all_keys.json 在账号目录下）")
         sys.exit(1)
 
-    print(f"密钥文件: {KEYFILE}")
+    print(f"凭据文件: {CRED_FILE}")
     print(f"输出目录: {OUTDIR}")
     print()
-    with open(KEYFILE) as f:
+    with open(CRED_FILE) as f:
         keys = json.load(f)
     ok = fail = 0
     for dbname, info in keys.items():

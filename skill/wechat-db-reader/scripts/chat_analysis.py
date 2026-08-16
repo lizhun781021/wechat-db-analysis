@@ -2,7 +2,7 @@
 """
 微信聊天数据分析脚本
 ====================
-从解密后的message_0.db中分析聊天数据：
+从导出后的message_0.db中分析聊天数据：
 - 群聊活跃度排名（含群内最活跃发送者）
 - 跨群聊最活跃的人（附带其最活跃的群名）
 - 私聊频次排名
@@ -16,7 +16,7 @@
 
 示例：
     python3 chat_analysis.py \
-        --msg-db ./decrypted_db/message/message_0.db \
+        --msg-db ./exported_db/message/message_0.db \
         --contact-db ./contact.db \
         --my-wxid your_wxid \
         --output ./analysis_result.json
@@ -369,7 +369,7 @@ def analyze_overall(msg_db, sessions, start_ts=None, end_ts=None):
 
 def main():
     parser = argparse.ArgumentParser(description="微信聊天数据分析脚本")
-    parser.add_argument("--msg-db", required=True, help="解密后的message_0.db路径")
+    parser.add_argument("--msg-db", required=True, help="导出后的message_0.db路径")
     parser.add_argument("--contact-db", required=True, help="contact.db路径（联系人映射）")
     parser.add_argument("--my-wxid", required=True, help="你自己的wxid（用于排除自己）")
     parser.add_argument("--output", default="analysis_result.json", help="输出JSON文件路径")

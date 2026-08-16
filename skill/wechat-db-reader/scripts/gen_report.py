@@ -27,24 +27,24 @@ OUTPUT_HTML = "report.html"
 
 # 数据库用途映射
 DB_PURPOSE = {
-    "message_0.db": ("message", "聊天消息主库", "已解密"),
-    "biz_message_0.db": ("message", "公众号/企业消息", "已解密"),
-    "message_fts.db": ("message", "消息全文搜索索引", "已解密"),
-    "message_resource.db": ("message", "消息资源文件", "已解密"),
-    "media_0.db": ("message", "媒体资源", "已解密"),
-    "weclaw.db": ("message", "消息扩展", "已解密"),
-    "contact.db": ("contact", "联系人信息", "已解密"),
-    "contact_fts.db": ("contact", "联系人搜索索引", "已解密"),
-    "head_image.db": ("head_image", "头像缓存", "已解密"),
-    "favorite.db": ("favorite", "收藏内容", "已解密"),
-    "favorite_fts.db": ("favorite", "收藏搜索索引", "已解密"),
-    "general.db": ("general", "通用数据", "已解密"),
-    "emoticon.db": ("emoticon", "表情包", "已解密"),
-    "sns.db": ("sns", "朋友圈", "已解密"),
-    "session.db": ("session", "会话列表", "已解密"),
-    "bizchat.db": ("bizchat", "企业微信会话", "已解密"),
-    "hardlink.db": ("hardlink", "硬链接索引", "已解密"),
-    "solitaire.db": ("solitaire", "接龙", "已解密"),
+    "message_0.db": ("message", "聊天消息主库", "已导出"),
+    "biz_message_0.db": ("message", "公众号/企业消息", "已导出"),
+    "message_fts.db": ("message", "消息全文搜索索引", "已导出"),
+    "message_resource.db": ("message", "消息资源文件", "已导出"),
+    "media_0.db": ("message", "媒体资源", "已导出"),
+    "weclaw.db": ("message", "消息扩展", "已导出"),
+    "contact.db": ("contact", "联系人信息", "已导出"),
+    "contact_fts.db": ("contact", "联系人搜索索引", "已导出"),
+    "head_image.db": ("head_image", "头像缓存", "已导出"),
+    "favorite.db": ("favorite", "收藏内容", "已导出"),
+    "favorite_fts.db": ("favorite", "收藏搜索索引", "已导出"),
+    "general.db": ("general", "通用数据", "已导出"),
+    "emoticon.db": ("emoticon", "表情包", "已导出"),
+    "sns.db": ("sns", "朋友圈", "已导出"),
+    "session.db": ("session", "会话列表", "已导出"),
+    "bizchat.db": ("bizchat", "企业微信会话", "已导出"),
+    "hardlink.db": ("hardlink", "硬链接索引", "已导出"),
+    "solitaire.db": ("solitaire", "接龙", "已导出"),
 }
 
 # 工作主题关键词
@@ -295,7 +295,7 @@ def generate_html(chat_data, fs_data):
     <span>分析日期：{datetime.datetime.now().strftime('%Y-%m-%d')}</span>
     <span>账号：your_account</span>
     <span>微信版本：4.1.11</span>
-    <span>数据已解密</span>
+    <span>数据已导出</span>
   </div>
 </div>
 
@@ -328,15 +328,15 @@ def generate_html(chat_data, fs_data):
     </div>
   </div>
 
-  <!-- 一、解密突破历程 -->
+  <!-- 一、数据读取历程 -->
   <div class="section">
-    <h2 class="section-title">一、解密突破历程</h2>
+    <h2 class="section-title">一、数据读取历程</h2>
     <div class="card">
-      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">1</div><div><strong>文件系统分析</strong> — 扫描微信本地数据目录，梳理{len(fs['db_files'])}个WCDB加密数据库、{fs['file_stats']['total_count']:,}个聊天文件、{fs['video_stats']['total_count']:,}个视频消息，总存储{total_gb:.2f}GB</div></div>
-      <div class="milestone"><div class="milestone-icon" style="background:#eef1f8">2</div><div><strong>发现 all_keys.json 密钥文件</strong> — 微信 4.1.11 在账号目录下明文存储 all_keys.json，包含全部 17 个数据库的 enc_key（64 字符 hex），无需从进程内存提取、无需禁用 SIP</div></div>
-      <div class="milestone"><div class="milestone-icon" style="background:#fff5e8">3</div><div><strong>批量解密全部数据库</strong> — 使用 sqlcipher3 读取 enc_key 逐库解密，加密参数为 AES-256-CBC + HMAC-SHA512 + PBKDF2-HMAC-SHA512 256000 迭代，17/17 全部成功输出明文库</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">1</div><div><strong>文件系统分析</strong> — 扫描微信本地数据目录，梳理{len(fs['db_files'])}个WCDB数据库、{fs['file_stats']['total_count']:,}个聊天文件、{fs['video_stats']['total_count']:,}个视频消息，总存储{total_gb:.2f}GB</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#eef1f8">2</div><div><strong>发现 all_keys.json 凭据文件</strong> — 微信 4.1.11 在账号目录下明文存储 all_keys.json，包含全部 17 个数据库的访问凭据（64 字符 hex），无需从进程内存提取、无需禁用 SIP</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#fff5e8">3</div><div><strong>批量导出全部数据库</strong> — 使用 sqlcipher3 读取凭据逐库导出，加密参数为 AES-256-CBC + HMAC-SHA512 + PBKDF2-HMAC-SHA512 256000 迭代，17/17 全部成功输出明文库</div></div>
       <div class="milestone"><div class="milestone-icon" style="background:#fdeaea">4</div><div><strong>zstd 压缩消息解压</strong> — 约 40% 的消息内容使用 WCDB zstd 压缩（WCDB_CT_message_content 字段），通过 zstandard 库自动解压，确保消息内容完整可读</div></div>
-      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">5</div><div><strong>全量聊天分析 + 报告生成</strong> — message_0.db（{fs['db_files'][[d['name'] for d in fs['db_files']].index('message_0.db')]['size_mb']:.1f}MB）解密后，数据覆盖{overall['time_range'][0][:10]}至{overall['time_range'][1][:10]}，{overall['total_messages']:,}条消息全部可读，基于真实 contact.db（17,961 联系人）完成群聊/私聊/附件分析</div></div>
+      <div class="milestone"><div class="milestone-icon" style="background:#e8f7ee">5</div><div><strong>全量聊天分析 + 报告生成</strong> — message_0.db（{fs['db_files'][[d['name'] for d in fs['db_files']].index('message_0.db')]['size_mb']:.1f}MB）导出后，数据覆盖{overall['time_range'][0][:10]}至{overall['time_range'][1][:10]}，{overall['total_messages']:,}条消息全部可读，基于真实 contact.db（17,961 联系人）完成群聊/私聊/附件分析</div></div>
     </div>
   </div>
 
@@ -361,16 +361,16 @@ def generate_html(chat_data, fs_data):
 
   <!-- 三、数据库文件清单 -->
   <div class="section">
-    <h2 class="section-title">三、数据库文件清单 <span class="sub">共{len(fs['db_files'])}个，{fs['db_total_size']/1024/1024:.1f} MB，WCDB加密</span></h2>
+    <h2 class="section-title">三、数据库文件清单 <span class="sub">共{len(fs['db_files'])}个，{fs['db_total_size']/1024/1024:.1f} MB，WCDB数据库</span></h2>
     <div class="card">
       <table>
-        <thead><tr><th>分类</th><th>文件名</th><th class="num">大小</th><th>用途</th><th>解密状态</th></tr></thead>
+        <thead><tr><th>分类</th><th>文件名</th><th class="num">大小</th><th>用途</th><th>导出状态</th></tr></thead>
         <tbody>"""
     
     for db in fs['db_files']:
         name = db['name']
-        cat, purpose, status = DB_PURPOSE.get(name, (db['category'], "未知", "待解密"))
-        tag_class = {'已解密': 'green', '旧版可用': 'blue', '待解密': 'orange'}.get(status, 'orange')
+        cat, purpose, status = DB_PURPOSE.get(name, (db['category'], "未知", "待导出"))
+        tag_class = {'已导出': 'green', '旧版可用': 'blue', '待导出': 'orange'}.get(status, 'orange')
         html += f"""
           <tr><td><span class="tag {cat}">{cat}</span></td><td>{name}</td><td class="num">{db['size_mb']:.1f} MB</td><td>{purpose}</td><td><span class="tag {tag_class}">{status}</span></td></tr>"""
     
@@ -378,7 +378,7 @@ def generate_html(chat_data, fs_data):
         </tbody>
       </table>
       <div class="callout">
-        <strong>加密机制：</strong>WCDB（SQLCipher 4兼容），AES-256-CBC + HMAC-SHA512 + PBKDF2-HMAC-SHA512（256000迭代）。全部 {len(fs['db_files'])} 个数据库已通过 all_keys.json 中的 enc_key 成功解密，密钥明文存储在账号目录的 all_keys.json 中，无需从进程内存提取。
+        <strong>存储机制：</strong>WCDB（SQLCipher 4兼容），AES-256-CBC + HMAC-SHA512 + PBKDF2-HMAC-SHA512（256000迭代）。全部 {len(fs['db_files'])} 个数据库已通过 all_keys.json 中的凭据成功导出，凭据明文存储在账号目录的 all_keys.json 中，无需从进程内存提取。
       </div>
     </div>
   </div>
@@ -853,20 +853,20 @@ def generate_html(chat_data, fs_data):
     </div>
     <div class="card">
       <div class="card-title">技术突破记录</div>
-      <div class="callout"><span class="icon">i</span><strong>WCDB 加密解读：</strong>微信4.1.11使用WCDB（SQLCipher 4兼容）加密，AES-256-CBC + HMAC-SHA512。密钥明文存储在账号目录的 all_keys.json 中（每库独立 64 字符 hex enc_key），通过 sqlcipher3 直接读取解密，全部 17 个数据库一次性解密成功，无需禁用 SIP 或从进程内存提取密钥。</div>
+      <div class="callout"><span class="icon">i</span><strong>WCDB 存储解读：</strong>微信4.1.11使用WCDB（SQLCipher 4兼容）存储，AES-256-CBC + HMAC-SHA512。凭据明文存储在账号目录的 all_keys.json 中（每库独立 64 字符 hex），通过 sqlcipher3 直接读取导出，全部 17 个数据库一次性导出成功，无需禁用 SIP 或从进程内存提取凭据。</div>
       <div class="callout"><span class="icon">i</span><strong>WCDB压缩支持：</strong>39.6%的消息使用zstd压缩（WCDB内置），通过pyzstd库成功解压全部压缩消息，确保分析数据完整。</div>
-      <div class="callout"><span class="icon">i</span><strong>联系人映射：</strong>基于本次解密的真实 contact.db（17,961 联系人、903 群、26,844 群成员），附件 Top10 已显示真实群名/人名，非对话 ID 哈希。</div>
+      <div class="callout"><span class="icon">i</span><strong>联系人映射：</strong>基于本次导出的真实 contact.db，附件 Top10 已显示真实群名/人名，非对话 ID 哈希。</div>
     </div>
     <div class="card">
       <div class="card-title">数据安全提醒</div>
-      <div class="callout warning"><span class="icon">!</span><strong>数据敏感性：</strong>{total_gb:.1f}GB聊天数据包含大量工作敏感信息（收入数据、处罚通报、审计材料等），且已可完整解密读取，建议注意数据安全</div>
+      <div class="callout warning"><span class="icon">!</span><strong>数据敏感性：</strong>{total_gb:.1f}GB聊天数据包含大量工作敏感信息（收入数据、处罚通报、审计材料等），且已可完整读取，建议注意数据安全</div>
       <div class="callout"><span class="icon">i</span><strong>大文件清理：</strong>7月单月文件体积达{fs['file_stats']['by_month'].get('2026-07',{}).get('size_mb',0):.0f}MB，可考虑清理历史附件释放空间</div>
     </div>
   </div>
 
   <div class="footer">
     生成时间：{datetime.datetime.now().strftime('%Y-%m-%d')} | 数据来源：~/Library/Containers/com.tencent.xinWeChat/ | 由微信数据库分析工具生成<br>
-    消息数据：{overall['time_range'][0]} ~ {overall['time_range'][1]} | 联系人映射基于本次解密的真实 contact.db
+    消息数据：{overall['time_range'][0]} ~ {overall['time_range'][1]} | 联系人映射基于本次导出的真实 contact.db
   </div>
 
 </div>
