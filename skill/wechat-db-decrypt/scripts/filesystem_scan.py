@@ -194,24 +194,25 @@ def scan_files_by_type(data_dir, subdir, file_types=None):
 def build_attach_name_map(data_dir):
     """构建 md5(username) -> display_name 映射，用于附件目录ID转名"""
     name_map = {}
-    # 优先用chatlog缓存的contact.db
-    cache_dir = os.path.expanduser("~/.chatlog/wcdb_cache")
+    # 从解密后的 contact.db 构建映射（与 data_dir 同级的 decrypted 目录）
+    # 先看 data_dir/db_storage 下有没有解密后的 contact.db
+    candidates = [
+        os.path.join(os.getcwd(), "decrypted_db_411", "contact", "contact.db"),
+        os.path.join(data_dir, "db_storage", "contact.db"),
+    ]
     contact_db = None
-    if os.path.isdir(cache_dir):
-        for f in os.listdir(cache_dir):
-            if not f.endswith('.db') or '-shm' in f or '-wal' in f:
-                continue
-            path = os.path.join(cache_dir, f)
+    for path in candidates:
+        if os.path.isfile(path):
             try:
                 conn = sqlite3.connect(path)
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
                 tables = [r[0] for r in cur.fetchall()]
                 conn.close()
-                if 'contact' in tables and 'chat_room' in tables:
+                if 'contact' in tables:
                     contact_db = path
                     break
-            except:
+            except Exception:
                 pass
 
     if contact_db:
@@ -325,45 +326,17 @@ def normalize_stats(stats):
     return result
 
 
-def main():
-    parser = argparse.ArgumentParser(description="微信本地数据文件系统扫描器")
-    parser.add_argument("--data-dir", required=True, help="微信数据目录路径")
-    parser.add_argument("--output", default="filesystem_scan.json", help="输出JSON路径")
-    args = parser.parse_args()
+def run_scan(data_dir, output_path):
+    """编程入口：扫描微信数据目录并保存 JSON，返回结果 dict"""
+    data_dir = os.path.expanduser(data_dir)
+    output_path = os.path.expanduser(output_path)
 
-    data_dir = os.path.expanduser(args.data_dir)
-    output_path = os.path.expanduser(args.output)
-
-    print("=== 微信数据文件系统扫描 ===")
-    print(f"数据目录: {data_dir}")
-    print()
-
-    # 扫描数据库
-    print("扫描数据库文件...")
     db_files, db_total_size = scan_db_files(data_dir)
-    print(f"  数据库: {len(db_files)}个, {db_total_size/1024/1024:.1f} MB")
-
-    # 扫描聊天文件
-    print("扫描聊天文件...")
     file_stats = scan_files_by_type(data_dir, "file")
-    print(f"  文件: {file_stats['total_count']}个, {file_stats['total_size_gb']:.2f} GB")
-
-    # 扫描视频
-    print("扫描视频消息...")
     video_stats = scan_files_by_type(data_dir, "video")
-    print(f"  视频: {video_stats['total_count']}个, {video_stats['total_size_gb']:.2f} GB")
-
-    # 扫描附件
-    print("扫描图片附件...")
     attach_stats = scan_attach(data_dir)
-    print(f"  附件: {attach_stats['total_count']}个, {attach_stats['total_size_gb']:.2f} GB")
-
-    # 扫描缓存
-    print("扫描缓存...")
     cache_stats = scan_cache(data_dir)
-    print(f"  缓存: {cache_stats['total_count']}个, {cache_stats['total_size_gb']:.2f} GB")
 
-    # 汇总
     total_storage = (
         file_stats['total_size_gb'] +
         video_stats['total_size_gb'] +
@@ -381,13 +354,36 @@ def main():
         'video_stats': video_stats,
         'attach_stats': attach_stats,
         'cache_stats': cache_stats,
-        'total_storage_gb': round(total_storage + 0.15, 2),  # +其他资源
+        'total_storage_gb': round(total_storage + 0.15, 2),
     }
-
-    print(f"\n总存储: {result['total_storage_gb']:.2f} GB")
 
     with open(output_path, 'w', encoding='utf-8') as f:
         json.dump(result, f, ensure_ascii=False, indent=2)
+
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description="微信本地数据文件系统扫描器")
+    parser.add_argument("--data-dir", required=True, help="微信数据目录路径")
+    parser.add_argument("--output", default="filesystem_scan.json", help="输出JSON路径")
+    args = parser.parse_args()
+
+    data_dir = os.path.expanduser(args.data_dir)
+    output_path = os.path.expanduser(args.output)
+
+    print("=== 微信数据文件系统扫描 ===")
+    print(f"数据目录: {data_dir}")
+    print()
+
+    result = run_scan(data_dir, output_path)
+
+    print(f"  数据库: {len(result['db_files'])}个, {result['db_total_size']/1024/1024:.1f} MB")
+    print(f"  文件: {result['file_stats']['total_count']}个, {result['file_stats']['total_size_gb']:.2f} GB")
+    print(f"  视频: {result['video_stats']['total_count']}个, {result['video_stats']['total_size_gb']:.2f} GB")
+    print(f"  附件: {result['attach_stats']['total_count']}个, {result['attach_stats']['total_size_gb']:.2f} GB")
+    print(f"  缓存: {result['cache_stats']['total_count']}个, {result['cache_stats']['total_size_gb']:.2f} GB")
+    print(f"\n总存储: {result['total_storage_gb']:.2f} GB")
     print(f"结果已保存: {output_path}")
 
 

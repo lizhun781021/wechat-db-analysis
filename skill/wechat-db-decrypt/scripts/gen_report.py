@@ -853,7 +853,7 @@ def generate_html(chat_data, fs_data):
     </div>
     <div class="card">
       <div class="card-title">技术突破记录</div>
-      <div class="callout"><span class="icon">i</span><strong>WCDB加密破解：</strong>微信4.1.11使用WCDB（SQLCipher 4兼容）加密，AES-256-CBC + HMAC-SHA512。密钥明文存储在账号目录的 all_keys.json 中（每库独立 64 字符 hex enc_key），通过 sqlcipher3 直接读取解密，全部 17 个数据库一次性解密成功，无需禁用 SIP 或从进程内存提取密钥。</div>
+      <div class="callout"><span class="icon">i</span><strong>WCDB 加密解读：</strong>微信4.1.11使用WCDB（SQLCipher 4兼容）加密，AES-256-CBC + HMAC-SHA512。密钥明文存储在账号目录的 all_keys.json 中（每库独立 64 字符 hex enc_key），通过 sqlcipher3 直接读取解密，全部 17 个数据库一次性解密成功，无需禁用 SIP 或从进程内存提取密钥。</div>
       <div class="callout"><span class="icon">i</span><strong>WCDB压缩支持：</strong>39.6%的消息使用zstd压缩（WCDB内置），通过pyzstd库成功解压全部压缩消息，确保分析数据完整。</div>
       <div class="callout"><span class="icon">i</span><strong>联系人映射：</strong>基于本次解密的真实 contact.db（17,961 联系人、903 群、26,844 群成员），附件 Top10 已显示真实群名/人名，非对话 ID 哈希。</div>
     </div>
@@ -875,6 +875,26 @@ def generate_html(chat_data, fs_data):
     
     return html
 
+def generate(chat_json, fs_json, output_html):
+    """编程入口：读取两个 JSON 生成 HTML 报告"""
+    chat_json = os.path.expanduser(chat_json)
+    fs_json = os.path.expanduser(fs_json)
+    output_html = os.path.expanduser(output_html)
+
+    with open(chat_json, 'r', encoding='utf-8') as f:
+        chat_data = json.load(f)
+    with open(fs_json, 'r', encoding='utf-8') as f:
+        fs_data = json.load(f)
+
+    html = generate_html(chat_data, fs_data)
+
+    with open(output_html, 'w', encoding='utf-8') as f:
+        f.write(html)
+
+    print(f"HTML报告已生成: {output_html}")
+    print(f"文件大小: {os.path.getsize(output_html) / 1024:.1f} KB")
+
+
 def main():
     parser = argparse.ArgumentParser(description="微信本地数据库分析报告生成器")
     parser.add_argument("--chat-json", default=CHAT_JSON, help="聊天分析JSON路径")
@@ -886,19 +906,7 @@ def main():
     fs_json = os.path.expanduser(args.fs_json)
     output_html = os.path.expanduser(args.output)
 
-    with open(chat_json, 'r', encoding='utf-8') as f:
-        chat_data = json.load(f)
-
-    with open(fs_json, 'r', encoding='utf-8') as f:
-        fs_data = json.load(f)
-
-    html = generate_html(chat_data, fs_data)
-
-    with open(output_html, 'w', encoding='utf-8') as f:
-        f.write(html)
-
-    print(f"HTML报告已生成: {output_html}")
-    print(f"文件大小: {os.path.getsize(output_html) / 1024:.1f} KB")
+    generate(chat_json, fs_json, output_html)
 
 if __name__ == '__main__':
     main()
