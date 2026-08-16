@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '346bae97-5b04-4dac-a2f9-54d524125778'
-  PropagateID: '346bae97-5b04-4dac-a2f9-54d524125778'
-  ReservedCode1: '72a0554b-e2bd-4bfa-994d-8dc18bdb6ed0'
-  ReservedCode2: '72a0554b-e2bd-4bfa-994d-8dc18bdb6ed0'
+  ProduceID: '7672ad62-fb4b-4d77-a525-0d9bdf149cce'
+  PropagateID: '7672ad62-fb4b-4d77-a525-0d9bdf149cce'
+  ReservedCode1: '4a18f3da-b1d4-4252-b149-cd510d855977'
+  ReservedCode2: '4a18f3da-b1d4-4252-b149-cd510d855977'
 ---
 
 # 微信 4.x 本地数据库解密与分析工具
@@ -19,24 +19,26 @@ macOS 上微信 4.1.x（App Store 版）本地 WCDB 加密数据库的解密、�
 
 ## 核心发现
 
-微信 4.1.11 相比之前版本改变了加密参数：
+微信 4.1.11 的数据库密钥实际存储在账号目录的 `all_keys.json` 中（每库独立 enc_key），**无需从进程内存提取密钥**，也无需禁用 SIP。这是 2026-08-16 攻坚确认的关键简化路径：
 
-| 参数 | 旧版（4.1.7 等） | 4.1.11 |
-|------|------------------|--------|
-| enc_key 派生 | PBKDF2-SHA512 256000 次迭代 | **直接使用 raw key，不做迭代** |
-| mac_key 派生 | PBKDF2-SHA512 256000 次迭代 | PBKDF2-SHA512 **2 次**迭代 |
-| 验证方式 | salt + PBKDF2 | salt XOR 0x3a + PBKDF2 |
+| 发现 | 说明 |
+|------|------|
+| 密钥位置 | `xwechat_files/<账号>/all_keys.json`，明文 JSON，每库 64 字符 hex enc_key |
+| 覆盖范围 | 全部 17 个数据库（contact/message/session/sns 等）全部可用 |
+| 兼容性 | 密钥长期有效，跨版本（4.1.7→4.1.11）仍可用 |
+| 加密参数 | AES-256-CBC + HMAC-SHA512 + PBKDF2-HMAC-SHA512 256000 迭代 |
 
-> 注意：此参数变更已确认适用于 `message_0.db`。其他数据库可能使用不同的 per-db 密钥或参数。
+> 注意：此文件权限为 600（仅用户可读），微信运行时生成。部分场景下微信会以 0 字节空文件呈现（本次即遇到），**需要从微信容器实际路径读取**而非工作区副本。
 
 ## 项目结构
 
 ```
 wechat-db-analysis/
 ├── scripts/
-│   ├── decrypt_v411.py      # WCDB 数据库解密器（4.1.11 参数）
+│   ├── decrypt_with_keys.py # all_keys.json 批量解密（4.1.11 首选）
+│   ├── decrypt_v411.py      # WCDB 数据库解密器（chatlog 内存密钥方案）
 │   ├── chat_analysis.py     # 聊天数据分析（群聊/私聊/时间分布）
-│   ├── filesystem_scan.py   # 文件系统扫描器（数据库/文件/附件/视频）
+│   ├── filesystem_scan.py   # 文件系统扫描器（数据库/文件/附件/视频，含ID→名称映射）
 │   └── gen_report.py        # HTML 报告生成器（微信绿色风格）
 ├── docs/
 │   └── encryption_notes.md  # 加密技术细节笔记
@@ -48,50 +50,45 @@ wechat-db-analysis/
 
 ### 环境要求
 
-- macOS（需禁用 SIP 提取密钥）
+- macOS（无需禁用 SIP，无需重签名微信）
 - Python 3.10+
-- Go 1.21+（编译 chatlog 提取密钥）
+- `sqlcipher3`（WCDB 解密依赖）
 - 微信 4.1.x（App Store 版）
 
 ### 安装依赖
 
 ```bash
-pip install pycryptodome zstandard
+pip install pycryptodome zstandard sqlcipher3
 ```
 
-### 步骤一：提取密钥
+> 若 `sqlcipher3` 安装失败，需先安装 OpenSSL：`brew install openssl`，再 `export LDFLAGS="-L$(brew --prefix openssl)/lib" CFLAGS="-I$(brew --prefix openssl)/include"` 后重试。
 
-> 需要禁用 SIP（System Integrity Protection），因为要从微信进程内存中读取数据。
+### 步骤一：读取密钥
 
-1. 禁用 SIP：关机 → 按住电源键进入恢复模式 → 终端 → `csrutil disable` → 重启
-2. 对微信进行 adhoc 重签名（移除 Hardened Runtime）：
-   ```bash
-   codesign --force --sign - --remove-signature /Applications/WeChat.app
-   ```
-3. 编译并运行 [chatlog](https://github.com/any35/chatlog)（Go 版）提取密钥：
-   ```bash
-   git clone https://github.com/any35/chatlog.git
-   cd chatlog
-   go build -o chatlog .
-   ./chatlog
-   ```
-4. 密钥会保存在 `~/.chatlog/chatlog.json` 的 `data_key` 字段中
+4.1.11 起密钥直接存储在账号目录的 `all_keys.json`（无需从进程内存提取）：
+
+```bash
+# 微信容器路径（账号目录名形如 <wxid>_<hash>）
+WXDIR=~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/<your_account>
+cat $WXDIR/all_keys.json
+```
+
+每个数据库对应一个 64 字符 hex 的 `enc_key`。若文件为 0 字节空文件，请先退出并重启微信后再读取。
 
 ### 步骤二：解密数据库
 
 ```bash
-python3 scripts/decrypt_v411.py \
-    --key <你的32字节Data Key hex> \
-    --input ~/Library/Containers/com.tencent.xinWeChat/Data/Documents/xwechat_files/<your_account>/db_storage \
-    --output ./decrypted_db
+python3 scripts/decrypt_with_keys.py
 ```
+
+脚本默认读取上述 `WXDIR` 下的 `all_keys.json` 与 `db_storage/`，将全部 17 个数据库解密输出到 `./decrypted_db_411/`。如需自定义路径，直接修改脚本顶部 `WXDIR` / `OUTDIR` / `KEYFILE` 三个常量。
 
 ### 步骤三：分析聊天数据
 
 ```bash
 python3 scripts/chat_analysis.py \
-    --msg-db ./decrypted_db/message/message_0.db \
-    --contact-db ./decrypted_db/contact/contact.db \
+    --msg-db ./decrypted_db_411/message/message_0.db \
+    --contact-db ./decrypted_db_411/contact/contact.db \
     --my-wxid <你的wxid> \
     --output ./analysis_result.json
 ```
@@ -113,13 +110,17 @@ python3 scripts/gen_report.py \
     --output ./report.html
 ```
 
-### 步骤六：重新开启 SIP
+报告中的「附件最活跃对话 Top 10」会显示真实群名/人名（通过 `build_attach_name_map` 将附件目录的 `md5(对话ID)` 反向映射为备注名/昵称）。
 
-```bash
-# 恢复模式 → 终端
-csrutil enable
-# 重启
-```
+### （可选）旧方案：chatlog 内存提取
+
+4.1.11 之前无法从文件系统直接获得密钥时，可用 [chatlog](https://github.com/any35/chatlog) 从微信进程内存提取（需禁用 SIP）：
+
+1. 禁用 SIP → adhoc 重签名微信 → 编译运行 `chatlog` → 密钥存于 `~/.chatlog/chatlog.json` 的 `data_key` 字段
+2. 完成后恢复模式 `csrutil enable` 重新开启 SIP
+3. 使用 `scripts/decrypt_v411.py` 传入 `--key` 解密
+
+新版本优先使用 `all_keys.json` 方案，无需以上操作。
 
 ## 报告内容
 
@@ -168,17 +169,18 @@ csrutil enable
 
 ## 安全提醒
 
-- **SIP 禁用有安全风险**，仅在实际操作期间禁用，完成后立即重新开启
-- 解密后的数据库包含所有聊天记录，注意数据安全
-- 密钥提取后缓存在 `~/.chatlog/chatlog.json`，无需重复提取
-- 微信大版本更新可能更换密钥，需要重新提取
+- 解密后的数据库与 `all_keys.json` 包含全部聊天记录与密钥，**切勿提交到 git 或外传**（`.gitignore` 已排除 `*.db` / `*.json`）
+- 生成的分析报告含真实对话名称，如需提交仓库请使用脱敏示例（可参考历史 commit 处理方式）
+- `all_keys.json` 属微信运行时生成文件，权限 600，勿复制到工作区以外位置
+- 旧方案（chatlog 内存提取）需要禁用 SIP，有安全风险，仅实际需要时使用
 
 ## 依赖工具
 
 | 工具 | 用途 | 安装 |
 |------|------|------|
-| [chatlog](https://github.com/any35/chatlog) | 从内存提取 WCDB Data Key | `go install` |
-| pycryptodome | AES-CBC 解密 | `pip install pycryptodome` |
+| sqlcipher3 | 用 enc_key 解密 WCDB 数据库 | `pip install sqlcipher3` |
+| [chatlog](https://github.com/any35/chatlog) | （旧方案）从内存提取 WCDB Data Key | `go install` |
+| pycryptodome | AES-CBC 解密（备用方案） | `pip install pycryptodome` |
 | zstandard | WCDB zstd 压缩消息解压 | `pip install zstandard` |
 
 ## 参考项目

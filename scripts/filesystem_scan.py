@@ -25,8 +25,10 @@
 
 import os
 import json
+import hashlib
 import argparse
 import datetime
+import sqlite3
 from collections import defaultdict, Counter
 
 # 数据库用途映射
@@ -189,6 +191,42 @@ def scan_files_by_type(data_dir, subdir, file_types=None):
     return normalize_stats(stats)
 
 
+def build_attach_name_map(data_dir):
+    """构建 md5(username) -> display_name 映射，用于附件目录ID转名"""
+    name_map = {}
+    # 优先用chatlog缓存的contact.db
+    cache_dir = os.path.expanduser("~/.chatlog/wcdb_cache")
+    contact_db = None
+    if os.path.isdir(cache_dir):
+        for f in os.listdir(cache_dir):
+            if not f.endswith('.db') or '-shm' in f or '-wal' in f:
+                continue
+            path = os.path.join(cache_dir, f)
+            try:
+                conn = sqlite3.connect(path)
+                cur = conn.cursor()
+                cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = [r[0] for r in cur.fetchall()]
+                conn.close()
+                if 'contact' in tables and 'chat_room' in tables:
+                    contact_db = path
+                    break
+            except:
+                pass
+
+    if contact_db:
+        conn = sqlite3.connect(contact_db)
+        cur = conn.cursor()
+        cur.execute("SELECT username, nick_name, remark FROM contact WHERE delete_flag = 0")
+        for username, nick, remark in cur.fetchall():
+            h = hashlib.md5(username.encode()).hexdigest()
+            display = remark if remark else (nick if nick else username)
+            name_map[h] = display
+        conn.close()
+
+    return name_map
+
+
 def scan_attach(data_dir):
     """扫描附件目录"""
     target = os.path.join(data_dir, "msg", "attach")
@@ -208,7 +246,11 @@ def scan_attach(data_dir):
         stats['conversation_count'] = 0
         return stats
 
+    # 构建ID->名称映射
+    attach_name_map = build_attach_name_map(data_dir)
+
     conv_counter = Counter()
+    conv_size = defaultdict(int)
     for root, dirs, files in os.walk(target):
         # 附件目录结构: attach/<conv_id>/<month>/<files>
         parts = os.path.relpath(root, target).split(os.sep)
@@ -232,9 +274,17 @@ def scan_attach(data_dir):
             stats['by_month'][month]['count'] += 1
             stats['by_month'][month]['size_mb'] += size / (1024 * 1024)
 
+            if len(parts) >= 1 and parts[0] != '.':
+                conv_size[parts[0]] += size / (1024 * 1024)
+
     stats['conversation_count'] = len(conv_counter)
     stats['top_conversations'] = [
-        {'conv_id': cid[:16], 'count': cnt, 'size_mb': 0}
+        {
+            'conv_id': cid[:16],
+            'conv_name': attach_name_map.get(cid, cid[:16]),
+            'count': cnt,
+            'size_mb': conv_size.get(cid, 0)
+        }
         for cid, cnt in conv_counter.most_common(10)
     ]
 

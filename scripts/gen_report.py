@@ -99,7 +99,7 @@ def generate_html(chat_data, fs_data):
     max_attach_month_count = max(v['count'] for _, v in attach_months) if attach_months else 1
     
     # 工作主题最大值
-    topics = sorted(fs['work_topics'].items(), key=lambda x: x[1], reverse=True)
+    topics = sorted(fs['file_stats'].get('work_topics', fs.get('work_topics', {})).items(), key=lambda x: x[1], reverse=True)
     max_topic_count = max(v for _, v in topics) if topics else 1
     
     # 文件小时分布Top5
@@ -565,7 +565,8 @@ def generate_html(chat_data, fs_data):
         <tbody>"""
     
     tag_classes = ['green', 'green', 'blue', 'blue', 'orange', 'orange', 'orange', '', '', '']
-    for i, f in enumerate(fs['top_iterated_files'][:10]):
+    top_iterated = fs['file_stats'].get('top_iterated_files', [])
+    for i, f in enumerate(top_iterated[:10]):
         tag_class = tag_classes[i] if i < len(tag_classes) else ''
         tag_html = f'<span class="tag {tag_class}">{f["count"]}次</span>' if tag_class else f'<span class="tag">{f["count"]}次</span>'
         desc = '定期报表，每月多版本迭代' if '统计' in f['name'] or '发展量' in f['name'] else ('每周固定发送' if '活动安排' in f['name'] else ('专项问题处理' if '退订' in f['name'] or '申诉' in f['name'] else ('季度分析报告' if '季度' in f['name'] else ('月度收入报告' if '收入' in f['name'] or '会审' in f['name'] else '工作部署文件'))))
@@ -610,18 +611,20 @@ def generate_html(chat_data, fs_data):
     <div class="card">
       <div class="card-title">附件最活跃对话 Top 10</div>
       <table>
-        <thead><tr><th class="num">#</th><th>对话ID</th><th class="num">文件数</th><th class="num">大小</th><th>占比可视化</th></tr></thead>
+        <thead><tr><th class="num">#</th><th>对话名称</th><th class="num">文件数</th><th class="num">大小</th><th>占比可视化</th></tr></thead>
         <tbody>"""
     
     max_conv_count = fs['attach_stats']['top_conversations'][0]['count'] if fs['attach_stats']['top_conversations'] else 1
     for i, conv in enumerate(fs['attach_stats']['top_conversations'][:10]):
         bar_pct = conv['count'] / max_conv_count * 100
+        conv_name = conv.get('conv_name', conv['conv_id'])
         html += f"""
-          <tr><td class="num">{i+1}</td><td><code>{conv['conv_id']}…</code></td><td class="num">{conv['count']:,}</td><td class="num">{conv['size_mb']:.0f} MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:{bar_pct:.1f}%"></div></div></td></tr>"""
+          <tr><td class="num">{i+1}</td><td>{conv_name}</td><td class="num">{conv['count']:,}</td><td class="num">{conv['size_mb']:.0f} MB</td><td><div class="bar-track" style="height:16px"><div class="bar-fill green" style="width:{bar_pct:.1f}%"></div></div></td></tr>"""
     
+    top_conv_name = fs['attach_stats']['top_conversations'][0].get('conv_name', 'Top1') if fs['attach_stats']['top_conversations'] else 'Top1'
     html += f"""        </tbody>
       </table>
-      <div class="callout">Top1对话的文件数占{fs['attach_stats']['top_conversations'][0]['count']/fs['attach_stats']['total_count']*100:.0f}%，说明有一个非常高频的群聊或个人对话。</div>
+      <div class="callout">{top_conv_name}的文件数占{fs['attach_stats']['top_conversations'][0]['count']/fs['attach_stats']['total_count']*100:.0f}%，说明有一个非常高频的群聊或个人对话。</div>
     </div>
   </div>
 
@@ -838,8 +841,9 @@ def generate_html(chat_data, fs_data):
         <li> 周一最忙（文件+消息双高峰），周五收尾</li>"""
     
     # 找最高频迭代文件
-    if fs['top_iterated_files']:
-        top_iter = fs['top_iterated_files'][0]
+    top_iterated_all = fs['file_stats'].get('top_iterated_files', [])
+    if top_iterated_all:
+        top_iter = top_iterated_all[0]
         html += f"""
         <li> "{top_iter['name']}"出现 <strong>{top_iter['count']}个版本</strong>，核心迭代报表</li>"""
     
