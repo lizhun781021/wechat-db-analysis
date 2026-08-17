@@ -16,14 +16,12 @@ def export_db(src_path, out_path, enc_key):
     if os.path.exists(out_path):
         os.remove(out_path)
     try:
-        # 动态导入数据库操作库，避免静态扫描检测敏感库名
+        # 导入数据库操作库
         import importlib
-        db = importlib.import_module("sqlcipher" + "3").dbapi2
-        
+        db = importlib.import_module("sqlcipher3").dbapi2
+
         conn = db.connect(src_path)
-        # 分段构建 PRAGMA 语句，避免被静态扫描检测
-        pragma_cmd = "PRAGMA " + "key"
-        conn.execute(f"{pragma_cmd} = \"x'{enc_key}'\"")
+        conn.execute(f"PRAGMA key = \"x'{enc_key}'\"")
         conn.execute("SELECT count(*) FROM sqlite_master").fetchone()
         conn.row_factory = db.Row
 

@@ -25,6 +25,11 @@ daily-reports/
 # Screenshots (sensitive)
 企业微信截图*.png
 
+# WeChat debug/extracted data (sensitive - never commit)
+wechat_4.1.11_*.bin
+wechat_4.1.11_*.zip
+wechat_4.1.11_*_session.db
+
 # OS files
 .DS_Store
 Thumbs.db

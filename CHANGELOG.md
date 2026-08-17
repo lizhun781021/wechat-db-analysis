@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'fffd8987-8048-420e-bcbc-ff1702e4c64f'
-  PropagateID: 'fffd8987-8048-420e-bcbc-ff1702e4c64f'
-  ReservedCode1: '6ec573e9-e2bb-474f-bf94-1337aed5f71e'
-  ReservedCode2: '6ec573e9-e2bb-474f-bf94-1337aed5f71e'
+  ProduceID: '77eb62cd-5039-48d5-90d3-982624a9cace'
+  PropagateID: '77eb62cd-5039-48d5-90d3-982624a9cace'
+  ReservedCode1: '5fc78403-5acd-448a-a4a4-0b180f1f3043'
+  ReservedCode2: '5fc78403-5acd-448a-a4a4-0b180f1f3043'
 ---
 
 # Changelog
@@ -17,6 +17,18 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.6.0] - 2026-08-17
+
+### 新增
+- 技能成功上架 TeleAgent 技能广场（审核通过）
+
+### 修复
+- 删除技能目录 `scripts/__pycache__/` 下 5 个 `.pyc` 编译文件（云端审核判定为"恶意扩展文件名"的直接原因）
+- 移除字符串拼接混淆写法，改为正常写法：
+  - `run.py`: `"all_" + "keys.json"` → `"all_keys.json"`
+  - `db_export.py`: `"sqlcipher" + "3"` → `"sqlcipher3"`、`"PRAGMA " + "key"` → 正常 `PRAGMA key`
+- 技能主目录与项目存档同步
 
 ## [v1.5.3] - 2026-08-16
 
