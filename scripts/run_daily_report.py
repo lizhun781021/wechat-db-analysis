@@ -8,13 +8,17 @@
   - 微信聊天日报_YYYY-MM-DD.html   （精简日报网页）
   - 微信聊天日报_YYYY-MM-DD.png    （长图）
 
+2026-09-11 新增：全文索引库兜底模式
+  当 message_0.db 密钥失效（数据库轮转换钥等）时，自动改用
+  message_fts.db（全文索引库，密钥稳定）重建日报，口径为文字类消息。
+
 用法：
     python3 run_daily_report.py                 # 默认昨天
     python3 run_daily_report.py --date 2026-08-15   # 指定日期
     python3 run_daily_report.py --keep-decrypted   # 保留解密库（默认用完即删）
 
 依赖：
-    pip install sqlcipher3 zstandard
+    pip install sqlcipher3 zstandard pycryptodome
     全局 npm: playwright（用于长图生成）
 """
 
@@ -106,40 +110,86 @@ def main():
     with open(KEYFILE) as f:
         keys = json.load(f)
 
-    # 3. 解密 message_0.db 和 contact.db
+    # 3. 解密数据库
     work_dir = tempfile.mkdtemp(prefix="wx_daily_")
     try:
         msg_out = os.path.join(work_dir, "message_0.db")
+        fts_out = os.path.join(work_dir, "message_fts.db")
         contact_out = os.path.join(work_dir, "contact.db")
 
         print("\n[1/4] 解密数据库...")
         msg_key = keys.get('message/message_0.db', {}).get('enc_key')
         contact_key = keys.get('contact/contact.db', {}).get('enc_key')
-        if not msg_key or not contact_key:
-            print("❌ 缺少 message_0.db 或 contact.db 的密钥")
+        fts_key = keys.get('message/message_fts.db', {}).get('enc_key')
+        if not contact_key:
+            print("❌ 缺少 contact.db 的密钥")
+            sys.exit(1)
+        if not msg_key and not fts_key:
+            print("❌ 缺少 message_0.db 和 message_fts.db 的密钥")
             sys.exit(1)
 
         msg_src = os.path.join(WXDIR, "db_storage", "message", "message_0.db")
+        msg1_src = os.path.join(WXDIR, "db_storage", "message", "message_1.db")
         contact_src = os.path.join(WXDIR, "db_storage", "contact", "contact.db")
+        fts_src = os.path.join(WXDIR, "db_storage", "message", "message_fts.db")
 
-        print(f"  解密 message_0.db ...")
-        decrypt_db(msg_src, msg_out, msg_key)
+        # 主路径：优先 message_1.db（当前消息库，完整口径），次选 message_0.db，最后 FTS 兜底
+        use_fts = False
+        use_msg1 = False
+        msg_key1 = keys.get('message/message_1.db', {}).get('enc_key')
+        if msg_key1 and os.path.exists(msg1_src):
+            print(f"  解密 message_1.db（当前消息库）...")
+            try:
+                decrypt_db(msg1_src, msg_out, msg_key1)
+                use_msg1 = True
+            except Exception as e:
+                print(f"  ⚠️ message_1.db 解密失败: {e}")
+                use_fts = True
+        elif msg_key and os.path.exists(msg_src):
+            print(f"  解密 message_0.db ...")
+            try:
+                decrypt_db(msg_src, msg_out, msg_key)
+            except Exception as e:
+                print(f"  ⚠️ message_0.db 解密失败（密钥失效/轮转）: {e}")
+                use_fts = True
+        else:
+            use_fts = True
+
+        if use_fts:
+            if not fts_key or not os.path.exists(fts_src):
+                print("❌ message_0/1.db 均不可用，且缺少 message_fts.db 密钥/文件")
+                sys.exit(1)
+            print(f"  → 切换全文索引库兜底模式（文字类消息口径）...")
+            sys.path.insert(0, SCRIPTS_DIR)
+            from decrypt_v411 import decrypt_db as decrypt_db_pages
+            decrypt_db_pages(fts_src, fts_out, bytes.fromhex(fts_key))
+
         print(f"  解密 contact.db ...")
         decrypt_db(contact_src, contact_out, contact_key)
         print("  解密完成")
 
-        # 4. 运行 chat_analysis.py（限定日期范围）
+        # 4. 运行分析（按数据源选择分析器）
         print("\n[2/3] 分析聊天数据...")
         analysis_json = os.path.join(work_dir, f"analysis_{report_date}.json")
-        chat_cmd = [
-            sys.executable, os.path.join(SCRIPTS_DIR, "chat_analysis.py"),
-            "--msg-db", msg_out,
-            "--contact-db", contact_out,
-            "--my-wxid", MY_WXID,
-            "--start-date", report_date,
-            "--end-date", report_date,
-            "--output", analysis_json,
-        ]
+        if use_fts:
+            chat_cmd = [
+                sys.executable, os.path.join(SCRIPTS_DIR, "build_analysis_from_fts.py"),
+                "--fts-db", fts_out,
+                "--contact-db", contact_out,
+                "--my-wxid", MY_WXID,
+                "--date", report_date,
+                "--output", analysis_json,
+            ]
+        else:
+            chat_cmd = [
+                sys.executable, os.path.join(SCRIPTS_DIR, "chat_analysis.py"),
+                "--msg-db", msg_out,
+                "--contact-db", contact_out,
+                "--my-wxid", MY_WXID,
+                "--start-date", report_date,
+                "--end-date", report_date,
+                "--output", analysis_json,
+            ]
         subprocess.run(chat_cmd, check=True)
 
         # 5. 生成日报 HTML
@@ -154,6 +204,8 @@ def main():
             "--output", html_path,
             "--date", report_date,
         ]
+        if use_fts:
+            gen_cmd += ["--note", "数据来源：微信全文索引库（文字类消息口径；消息库密钥更新后可补全图片/语音等）"]
         subprocess.run(gen_cmd, check=True)
 
         # 6. 生成 PNG 长图

@@ -443,7 +443,8 @@ def main():
     print("\n分析时间分布...")
     time_dist = analyze_time_distribution(msg_db, sessions, start_ts, end_ts)
     print(f"  最活跃小时: {max(time_dist['hourly'], key=lambda x: x['count'])['hour']}点")
-    print(f"  最活跃月份: {max(time_dist['monthly'], key=lambda x: x['count'])['month']}")
+    if time_dist['monthly']:
+        print(f"  最活跃月份: {max(time_dist['monthly'], key=lambda x: x['count'])['month']}")
 
     # 6. 汇总输出
     result = {

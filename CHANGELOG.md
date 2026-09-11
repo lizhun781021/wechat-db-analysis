@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '77eb62cd-5039-48d5-90d3-982624a9cace'
-  PropagateID: '77eb62cd-5039-48d5-90d3-982624a9cace'
-  ReservedCode1: '5fc78403-5acd-448a-a4a4-0b180f1f3043'
-  ReservedCode2: '5fc78403-5acd-448a-a4a4-0b180f1f3043'
+  ProduceID: 'f756889f-3eb0-4ea5-9166-5c887112b84e'
+  PropagateID: 'f756889f-3eb0-4ea5-9166-5c887112b84e'
+  ReservedCode1: '1e1175a5-e998-4403-b0c0-3d966cd7d88b'
+  ReservedCode2: '1e1175a5-e998-4403-b0c0-3d966cd7d88b'
 ---
 
 # Changelog
@@ -17,6 +17,24 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.6.1] - 2026-09-11
+
+### 新增
+- 新增 `docs/key_extraction_success_20260911.md`：微信数据库轮换密钥提取实战指南
+  - 记录 hook `CCCryptorCreateWithMode`（libcommonCrypto）捕获 AES-256 数据库密钥的方法
+  - 明确 v411 HMAC 验证判据（避免"解密后是否含 SQLite 头"的误判陷阱）
+  - 汇总已排除的失败路径（内存扫描/salt邻近/key_info逆向/sqlite3_key hook 等）
+
+### 变更
+- `scripts/run_daily_report.py`：主路径升级为三级降级
+  1. `message_1.db`（当前消息库，完整口径）→ 2. `message_0.db` → 3. `message_fts.db`（文字类兜底）
+- 新增 `scripts/build_analysis_from_fts.py`：全文索引库兜底分析器（文字类消息口径）
+- `scripts/chat_analysis.py` / `scripts/gen_daily_report.py`：配合新数据源微调
+
+### 修复
+- 解决微信 9 月账期轮换后消息库密钥失效导致日报退化为 FTS 兜底的问题
+- 验证逻辑修正：v411 加密首页解密后不含明文 SQLite 头，以 HMAC 匹配为唯一判据
 
 ## [v1.6.0] - 2026-08-17
 

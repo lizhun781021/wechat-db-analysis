@@ -57,7 +57,7 @@ def rank_class(idx):
     return "other"
 
 
-def generate_daily_html(chat_data, report_date, generated_at):
+def generate_daily_html(chat_data, report_date, generated_at, source_note=None):
     overall = chat_data['overall']
     chatrooms = chat_data['chatrooms']
     private_chats = chat_data['private_chats']
@@ -177,6 +177,9 @@ def generate_daily_html(chat_data, report_date, generated_at):
     # 深夜时段（23-05点）统计
     night_total = sum(h['count'] for h in hourly if h['hour'] >= 23 or h['hour'] <= 5)
     night_pct = night_total / total_messages * 100 if total_messages else 0
+
+    # 可选数据来源脚注（--note 参数传入，默认不显示）
+    note_html = f'\n  <div class="note" style="font-size:12px;opacity:0.8;margin-top:10px;">{escape_html(source_note)}</div>' if source_note else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -306,7 +309,7 @@ def generate_daily_html(chat_data, report_date, generated_at):
   <div class="meta">
     <span>报告生成：{generated_at}</span>
     <span>数据已解密</span>
-  </div>
+  </div>{note_html}
 </div>
 
 <div class="stats-grid">
@@ -405,6 +408,7 @@ def main():
     parser.add_argument("--chat-json", required=True, help="聊天分析JSON路径")
     parser.add_argument("--output", required=True, help="输出HTML路径")
     parser.add_argument("--date", required=True, help="报告日期 YYYY-MM-DD")
+    parser.add_argument("--note", default=None, help="可选：数据来源说明，显示在页头下方（如索引库口径说明）")
     args = parser.parse_args()
 
     chat_json = os.path.expanduser(args.chat_json)
@@ -414,7 +418,7 @@ def main():
         chat_data = json.load(f)
 
     generated_at = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
-    html = generate_daily_html(chat_data, args.date, generated_at)
+    html = generate_daily_html(chat_data, args.date, generated_at, args.note)
 
     os.makedirs(os.path.dirname(output_html) or '.', exist_ok=True)
     with open(output_html, 'w', encoding='utf-8') as f:

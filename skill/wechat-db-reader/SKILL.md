@@ -4,6 +4,14 @@ description: 微信本地数据库读取与分析技能。读取微信 macOS 版
 name_cn: 微信数据库读取
 description_cn: 一键读取微信本地数据库，可选生成聊天分析和完整 HTML 报告
 create_source: super-agent-skill-creator
+AIGC:
+  ContentProducer: '001191110102MAD55U9H0F10002'
+  ContentPropagator: '001191110102MAD55U9H0F10002'
+  Label: '1'
+  ProduceID: '09f03ea2-d5b5-43ad-9c49-528f00d42fbd'
+  PropagateID: '09f03ea2-d5b5-43ad-9c49-528f00d42fbd'
+  ReservedCode1: 'b89a1bb0-9866-48f2-8696-56a4372c3252'
+  ReservedCode2: 'b89a1bb0-9866-48f2-8696-56a4372c3252'
 ---
 
 # 微信数据库读取
@@ -85,6 +93,42 @@ python3 scripts/run.py export+report --wxdir <微信数据目录>
 - **某库读取失败**：多为库当前被微信占用，可先退出微信再重试
 - **消息内容乱码**：消息体为 WCDB zstd 压缩，`chat_analysis.py` 已内置自动解压
 - **wxid 自动识别**：脚本从微信容器目录名自动推导自身 wxid，无需手动配置；多账号切换亦无需改代码
+
+## 密钥轮换应对（重要）
+
+微信在账期轮换时会更换消息库（`message_0.db`/`message_1.db`/`message_resource.db`）的密钥，
+旧密钥立即失效，表现为"凭据文件存在但解密失败"。
+
+**关键认知**：新版本微信密钥**不以明文驻留可读内存**，内存 dump 扫描、salt 邻近搜索等方法均失效；
+且微信 WCDB 为静态链接 SQLCipher，hook `sqlite3_key` 系统符号不触发。
+
+**有效方法**：微信加密最终必经系统 `libcommonCrypto.dylib` 的 `CCCryptorCreateWithMode`，
+hook 其参数即可直接捕获密钥：
+
+```js
+var cc = Process.findModuleByName('libcommonCrypto.dylib');
+var addr = cc.getExportByName('CCCryptorCreateWithMode');
+Interceptor.attach(addr, {
+  onEnter: function(args) {
+    var keyLen = args[6].toInt32();   // arm64: args[5]=key, args[6]=keyLen
+    if (keyLen === 32) {
+      send({key: hexify(args[5].readByteArray(32))});
+    }
+  }
+});
+```
+
+微信运行中打开聊天/收发消息即会触发（无需重启）。捕获后用 v411 HMAC 验证：
+
+```
+mac_key = PBKDF2-HMAC-SHA512(raw_key, salt^0x3a, iterations=2, dklen=32)
+HMAC-SHA512(mac_key, page_body[16:4032] + LE32(page_no+1)) 匹配即密钥正确
+```
+
+> 注意：v411 加密首页解密后不含明文 SQLite 头（需手动拼接 `SQLite format 3\0`），
+> 判断密钥正确性以 **HMAC 匹配**为准，不要用"解密后是否含 SQLite 头"判断。
+
+完整实战记录见项目 `docs/key_extraction_success_20260911.md`。
 
 ## 安全提醒
 
