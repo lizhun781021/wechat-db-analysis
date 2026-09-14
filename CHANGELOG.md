@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: 'f756889f-3eb0-4ea5-9166-5c887112b84e'
-  PropagateID: 'f756889f-3eb0-4ea5-9166-5c887112b84e'
-  ReservedCode1: '1e1175a5-e998-4403-b0c0-3d966cd7d88b'
-  ReservedCode2: '1e1175a5-e998-4403-b0c0-3d966cd7d88b'
+  ProduceID: '4f09445a-9509-4071-be24-f0a1f81b9c3e'
+  PropagateID: '4f09445a-9509-4071-be24-f0a1f81b9c3e'
+  ReservedCode1: '3a8cec5e-e31e-4f8a-a290-01b07948dd83'
+  ReservedCode2: '3a8cec5e-e31e-4f8a-a290-01b07948dd83'
 ---
 
 # Changelog
@@ -17,6 +17,22 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.6.2] - 2026-09-14
+
+### 修复
+- `scripts/build_analysis_from_fts.py`：FTS 兜底口径下 49 型卡片消息全部堆进"其他"的问题
+  - FTS 全文索引只存文本、无 XML 子类型，无法复用主库的 `parse_appmsg_subtype` 正则解析
+  - 新增 `classify_fts_type()` 文本启发式分类：文件扩展名→文件、群邀请→群邀请、
+    [聊天记录]→聊天记录、视频号→视频号、小程序→小程序、其余→链接卡片
+  - 替换原 `get_msg_type_name()` 简单映射，消除"其他(25769803825)"等未分类条目
+- `scripts/chat_analysis.py`：49 型卡片消息子类型细分（v1.6.1 已改但未提交，本次一并提交）
+  - 新增 `APPMSG_SUBTYPE_NAMES` 映射 + `parse_appmsg_subtype()` XML 正则解析
+  - `classify_type()` 对 49 型逐条解析子类型，映射为文本/文件/链接/商品/视频号等
+  - `count_types_by_group()` 按子类型细分统计，避免全部堆进"其他"
+
+### 变更
+- 技能 SKILL.md 新增「FTS 兜底口径说明」章节
 
 ## [v1.6.1] - 2026-09-11
 

@@ -53,6 +53,23 @@ MSG_TYPES = {
     10000: "系统消息",
 }
 
+# type=49（appmsg 卡片）的 XML 内部子类型映射
+# 消息内容为 <appmsg><type>N</type>... 的 XML，type 字段即子类型
+APPMSG_SUBTYPE_NAMES = {
+    1: "文本",
+    5: "文件",
+    6: "文件",
+    17: "位置",
+    19: "商品",
+    33: "链接",
+    36: "音乐",
+    51: "视频号",
+    57: "文本转发",
+    61: "视频号",
+    63: "视频号直播",
+    87: "链接",
+}
+
 # zstd解压器
 dctx = zstandard.ZstdDecompressor()
 
@@ -100,15 +117,61 @@ def decompress_content(content, wcdb_ct):
     return content or ""
 
 
-def get_msg_type_name(local_type):
-    """获取消息类型名称"""
+def parse_appmsg_subtype(text):
+    """从 appmsg 卡片 XML 中提取 <type> 子类型数字
+
+    49 型消息内容形如 <msg><appmsg ...><type>6</type>...，
+    其中的 type 才是具体业务类型（文件/链接/文本等）。
+    """
+    if not text:
+        return None
+    import re
+    m = re.search(r'<appmsg[^>]*>.*?<\s*type\s*>\s*(\d+)\s*<\s*/type\s*>', text, re.S)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def classify_type(local_type, content=None, wcdb_ct=0):
+    """获取消息类型名称；49 型（appmsg 卡片）进一步细分为子类型"""
     if local_type in MSG_TYPES:
         return MSG_TYPES[local_type]
     # 高位类型提取基础类型
     base_type = local_type & 0xFF
+    if base_type == 49:
+        # appmsg 卡片：解析 XML 子类型，映射为具体名称
+        sub = parse_appmsg_subtype(decompress_content(content, wcdb_ct) if content else None)
+        if sub is not None:
+            return APPMSG_SUBTYPE_NAMES.get(sub, f"链接卡片({sub})")
+        return "链接卡片"
     if base_type in MSG_TYPES:
         return MSG_TYPES[base_type]
     return f"其他({local_type})"
+
+
+def count_types_by_group(cur, table, where, params):
+    """统计各类型消息数（49 型按子类型细分，避免全部堆进"其他"）"""
+    counter = Counter()
+    rows = cur.execute(
+        f"SELECT local_type, COUNT(*) FROM `{table}`{where} GROUP BY local_type ORDER BY COUNT(*) DESC",
+        params,
+    ).fetchall()
+    for lt, c in rows:
+        if (lt & 0xFF) == 49 and lt not in MSG_TYPES:
+            # 逐条解析该类型消息的 XML 子类型，再归类统计
+            sub_where = f"{where} AND local_type=?" if where else " WHERE local_type=?"
+            sub_rows = cur.execute(
+                f"SELECT message_content, WCDB_CT_message_content FROM `{table}`{sub_where}",
+                params + [lt],
+            ).fetchall()
+            for content, wct in sub_rows:
+                counter[classify_type(lt, content, wct)] += 1
+        else:
+            counter[classify_type(lt)] += c
+    return counter
 
 
 def build_name_map(contact_db):
@@ -183,9 +246,8 @@ def analyze_chatrooms(msg_db, sessions, name_map, start_ts=None, end_ts=None):
             if total == 0:
                 continue
 
-            # 统计各类型消息数
-            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}`{where} GROUP BY local_type ORDER BY COUNT(*) DESC", params)
-            type_counts = {get_msg_type_name(lt): c for lt, c in cur.fetchall()}
+            # 统计各类型消息数（49 型细分到子类型）
+            type_counts = dict(count_types_by_group(cur, table, where, params))
 
             # 统计群内发送者（仅文字消息，从content提取wxid）
             # 群聊消息格式: "wxid_xxx:\n实际内容"
@@ -257,8 +319,8 @@ def analyze_private_chats(msg_db, sessions, name_map, start_ts=None, end_ts=None
             if total == 0:
                 continue
 
-            cur.execute(f"SELECT local_type, COUNT(*) FROM `{table}`{where} GROUP BY local_type ORDER BY COUNT(*) DESC", params)
-            type_counts = {get_msg_type_name(lt): c for lt, c in cur.fetchall()}
+            # 统计各类型消息数（49 型细分到子类型）
+            type_counts = dict(count_types_by_group(cur, table, where, params))
 
             display_name = name_map.get(username, username)
             private_stats.append({
@@ -343,13 +405,16 @@ def analyze_overall(msg_db, sessions, start_ts=None, end_ts=None):
         table = info['table']
         try:
             cur.execute(f"SELECT local_type, COUNT(*), MIN(create_time), MAX(create_time) FROM `{table}`{where} GROUP BY local_type", params)
-            for lt, c, mn, mx in cur.fetchall():
+            rows = cur.fetchall()
+            for lt, c, mn, mx in rows:
                 total_messages += c
-                all_types[get_msg_type_name(lt)] += c
                 if mn and mn < min_time:
                     min_time = mn
                 if mx and mx > max_time:
                     max_time = mx
+            # 类型分布（49 型细分到子类型）
+            for name, c in count_types_by_group(cur, table, where, params).items():
+                all_types[name] += c
         except:
             pass
 

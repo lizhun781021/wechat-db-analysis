@@ -8,10 +8,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '09f03ea2-d5b5-43ad-9c49-528f00d42fbd'
-  PropagateID: '09f03ea2-d5b5-43ad-9c49-528f00d42fbd'
-  ReservedCode1: 'b89a1bb0-9866-48f2-8696-56a4372c3252'
-  ReservedCode2: 'b89a1bb0-9866-48f2-8696-56a4372c3252'
+  ProduceID: 'daca575d-911c-4665-a3b5-9d36a5df63a7'
+  PropagateID: 'daca575d-911c-4665-a3b5-9d36a5df63a7'
+  ReservedCode1: '1c8cff84-a759-4733-876b-e2b565a41dae'
+  ReservedCode2: '1c8cff84-a759-4733-876b-e2b565a41dae'
 ---
 
 # 微信数据库读取
@@ -129,6 +129,20 @@ HMAC-SHA512(mac_key, page_body[16:4032] + LE32(page_no+1)) 匹配即密钥正确
 > 判断密钥正确性以 **HMAC 匹配**为准，不要用"解密后是否含 SQLite 头"判断。
 
 完整实战记录见项目 `docs/key_extraction_success_20260911.md`。
+
+## FTS 兜底口径说明
+
+当消息库密钥轮换失效、降级到全文索引库（`message_fts.db`）时，消息类型分类存在口径差异：
+
+- **主库口径**（`chat_analysis.py`）：49 型卡片消息可解析 XML `<type>` 子类型，精确定位为文件/链接/商品/视频号等
+- **FTS 兜底口径**（`build_analysis_from_fts.py`）：全文索引只存文本、无 XML，改用文本启发式分类
+  - 文件扩展名匹配 → 文件
+  - 含"邀请你加入群聊" → 群邀请
+  - 含"[聊天记录]" → 聊天记录
+  - 含"视频号" → 视频号
+  - 含"小程序" → 小程序
+  - 其余 49 型 → 链接卡片
+- FTS 口径只收录带文本的消息（文字/链接/文件名等），图片、语音、表情包等未入索引的消息不在统计内
 
 ## 安全提醒
 

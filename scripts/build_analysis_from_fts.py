@@ -47,15 +47,50 @@ MSG_TYPES = {
     10000: "系统消息",
 }
 
+# 常见文件扩展名（用于从卡片文本识别"文件"）
+FILE_EXTS = (
+    "xlsx", "xls", "csv", "docx", "doc", "pdf", "ppt", "pptx", "wps", "et", "dps",
+    "zip", "rar", "7z", "tar", "gz", "png", "jpg", "jpeg", "gif", "bmp", "webp",
+    "mp4", "mov", "avi", "mkv", "mp3", "wav", "flac", "m4a", "txt", "md", "json",
+    "ofd", "html", "htm", "db", "apk", "exe", "dmg", "iso", "torrent",
+)
+
 FTS_SHARDS = 4  # message_fts_v4_0 ~ message_fts_v4_3
 
 
-def get_msg_type_name(local_type):
+def classify_fts_type(local_type, content=None):
+    """获取消息类型名称（FTS 兜底口径）
+
+    与 chat_analysis.py 的差异：
+    - 主库口径可解析 appmsg 卡片的 XML <type> 精确定位子类型；
+    - FTS 全文索引只存文本，卡片消息（base=49）仅有文字描述，
+      无法解析 XML，改用文本启发式归类，避免全部堆进"其他"。
+    """
     if local_type in MSG_TYPES:
         return MSG_TYPES[local_type]
     base_type = local_type & 0xFF
     if base_type in MSG_TYPES:
         return MSG_TYPES[base_type]
+    if base_type == 49:
+        # appmsg 卡片：按文本内容启发式归类
+        text = (content or "").strip()
+        low = text.lower()
+        if not text:
+            return "链接卡片"
+        if "邀请你加入群聊" in text:
+            return "群邀请"
+        if "[聊天记录]" in text:
+            return "聊天记录"
+        if "视频号" in text:
+            return "视频号"
+        if "小程序" in text:
+            return "小程序"
+        if any(("." + ext + "\x08") in low or low.rstrip("\x08").endswith("." + ext)
+               for ext in FILE_EXTS):
+            return "文件"
+        if "音乐" in text or "歌曲" in text:
+            return "音乐"
+        return "链接卡片"
     return f"其他({local_type})"
 
 
@@ -149,7 +184,7 @@ def main():
     chatroom_msgs = defaultdict(list)   # username -> [msg]
     private_msgs = defaultdict(list)
     for m in messages:
-        all_types[get_msg_type_name(m["type"])] += 1
+        all_types[classify_fts_type(m["type"], m["content"])] += 1
         if m["create_time"] < min_time:
             min_time = m["create_time"]
         if m["create_time"] > max_time:
@@ -175,7 +210,7 @@ def main():
     sender_counter = Counter()          # 跨群发送者
     sender_chatrooms = defaultdict(Counter)  # 发送者 -> {群名: 数}
     for username, msgs in chatroom_msgs.items():
-        type_counts = Counter(get_msg_type_name(m["type"]) for m in msgs)
+        type_counts = Counter(classify_fts_type(m["type"], m["content"]) for m in msgs)
         room_senders = Counter(m["sender"] for m in msgs)
         display = name_map.get(username, username)
         for s, c in room_senders.items():
@@ -198,7 +233,7 @@ def main():
     # ---- 私聊统计 ----
     private_stats = []
     for username, msgs in private_msgs.items():
-        type_counts = Counter(get_msg_type_name(m["type"]) for m in msgs)
+        type_counts = Counter(classify_fts_type(m["type"], m["content"]) for m in msgs)
         private_stats.append({
             "username": username,
             "name": name_map.get(username, username),
