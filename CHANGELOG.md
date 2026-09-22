@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '62df7fe0-ac01-4b86-9b28-06afc06ea5e0'
-  PropagateID: '62df7fe0-ac01-4b86-9b28-06afc06ea5e0'
-  ReservedCode1: 'b42ae651-13ec-4077-953d-0d47114ce2ac'
-  ReservedCode2: 'b42ae651-13ec-4077-953d-0d47114ce2ac'
+  ProduceID: '16931fa2-20d2-4ad0-b115-f782953f1795'
+  PropagateID: '16931fa2-20d2-4ad0-b115-f782953f1795'
+  ReservedCode1: 'aa01c373-3685-4297-8a00-38a9ce4820bf'
+  ReservedCode2: 'aa01c373-3685-4297-8a00-38a9ce4820bf'
 ---
 
 # Changelog
@@ -17,6 +17,17 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.8.0] - 2026-09-22
+
+### 新增：AI 对话摘要引擎
+- `scripts/conversation_summary.py`：用大模型对每个活跃会话生成结构化摘要
+  - 自动按时间间隔分段（间隔>1小时算一段新对话）
+  - 每段对话调用大模型提取四要素：核心事项、关键决策、待办承诺、商机信号
+  - 支持群聊和私聊，自动按活跃度选取 Top N 会话
+  - 通过 8088 本地代理调用 NewApi/chat-flash 模型
+- `scripts/run_insights_report.py`：集成对话摘要到执行管线（步骤 2.5/5）
+- `scripts/gen_insights_report.py`：报告新增"AI 对话摘要"区块（置于概览卡片之后，最显眼位置）
 
 ## [v1.7.0] - 2026-09-22
 

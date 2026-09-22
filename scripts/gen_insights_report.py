@@ -44,6 +44,9 @@ def generate_report(data, generated_at):
     group_cls = data.get('group_classification', {})
     date_range = data.get('date_range', ['', ''])
 
+    # 对话摘要
+    conv_summaries = data.get('conversation_summaries', [])
+
     # 扩展分析数据
     response_times = data.get('response_times', [])
     relationships = data.get('relationship_temperature', [])
@@ -294,6 +297,30 @@ def generate_report(data, generated_at):
         </div>"""
 
     # --- 组装 HTML ---
+
+    # --- 对话摘要 HTML ---
+    conv_summary_html = ""
+    for cs in conv_summaries:
+        chat_type = "群聊" if cs.get('is_group') else "私聊"
+        type_color = "#07c160" if cs.get('is_group') else "#576b95"
+        seg_html = ""
+        for seg in cs.get('summaries', []):
+            s = seg.get('summary', {})
+            raw = seg.get('raw', '')
+            seg_html += f"""
+            <div class="conv-seg">
+              <div class="conv-seg-time">{esc(seg['time_range'])} · {seg['message_count']}条消息</div>
+              <div class="conv-seg-body">{esc(raw)}</div>
+            </div>"""
+        conv_summary_html += f"""
+        <div class="conv-card">
+          <div class="conv-header">
+            <span class="conv-type" style="background:{type_color}">{chat_type}</span>
+            <span class="conv-name">{esc(cs['chat_name'])}</span>
+            <span class="conv-meta">{cs['total_messages']}条消息 · {cs.get('segment_count',0)}段对话</span>
+          </div>
+          {seg_html}
+        </div>"""
 
     # === 扩展分析 HTML 生成 ===
 
@@ -633,6 +660,15 @@ def generate_report(data, generated_at):
   .type-pct {{ color:var(--primary); font-weight:600; }}
 
   .callout {{ background:#f0faf3; border:1px solid #c8f0d6; border-radius:10px; padding:12px 16px; margin:10px 0; font-size:14px; }}
+
+  .conv-card {{ background:var(--card); border-radius:12px; padding:18px; box-shadow:var(--shadow); margin-bottom:14px; border-left:4px solid #07c160; }}
+  .conv-header {{ display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }}
+  .conv-type {{ color:#fff; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600; }}
+  .conv-name {{ font-weight:700; font-size:15px; }}
+  .conv-meta {{ font-size:12px; color:var(--text2); }}
+  .conv-seg {{ background:#f8faf9; border-radius:8px; padding:12px; margin-bottom:8px; }}
+  .conv-seg-time {{ font-size:12px; color:var(--text2); margin-bottom:6px; font-weight:600; }}
+  .conv-seg-body {{ font-size:13px; line-height:1.8; color:#333; white-space:pre-wrap; }}
   .footer {{ text-align:center; font-size:12px; color:var(--text2); margin-top:40px; }}
   .two-col {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }}
   @media(max-width:680px) {{ .two-col {{ grid-template-columns:1fr; }} }}
@@ -649,6 +685,11 @@ def generate_report(data, generated_at):
 
 <div class="stats-grid">
   {"".join(overview_cards)}
+</div>
+
+<div class="section">
+  <div class="section-title">AI 对话摘要 <span class="badge">大模型理解 · {len(conv_summaries)}个会话</span></div>
+  {conv_summary_html or '<div class="card" style="text-align:center;color:#999">暂无对话摘要（需大模型服务运行中）</div>'}
 </div>
 
 <div class="section">

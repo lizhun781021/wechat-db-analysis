@@ -135,7 +135,7 @@ def main():
         msg_out = os.path.join(work_dir, "message_0.db")
         contact_out = os.path.join(work_dir, "contact.db")
 
-        print("\n[1/4] 解密数据库...")
+        print("\n[1/5] 解密数据库...")
         msg_key = keys.get('message/message_1.db', {}).get('enc_key') or \
                   keys.get('message/message_0.db', {}).get('enc_key')
         contact_key = keys.get('contact/contact.db', {}).get('enc_key')
@@ -176,7 +176,7 @@ def main():
         print("  解密完成")
 
         # 运行深度分析
-        print("\n[2/4] 深度分析（12项）...")
+        print("\n[2/5] 深度分析（30项）...")
         analysis_json = os.path.join(work_dir, f"deep_{report_label}.json")
         analysis_cmd = [
             sys.executable, os.path.join(SCRIPTS_DIR, "deep_analysis.py"),
@@ -189,8 +189,34 @@ def main():
         ]
         subprocess.run(analysis_cmd, check=True)
 
+        # 对话摘要（大模型）
+        print("\n[2.5/5] 对话摘要（大模型）...")
+        summary_json = os.path.join(work_dir, f"summary_{report_label}.json")
+        summary_cmd = [
+            sys.executable, os.path.join(SCRIPTS_DIR, "conversation_summary.py"),
+            "--msg-db", msg_out,
+            "--contact-db", contact_out,
+            "--my-wxid", MY_WXID,
+            "--start-date", start_date,
+            "--end-date", end_date,
+            "--output", summary_json,
+        ]
+        try:
+            subprocess.run(summary_cmd, check=True)
+            # 合并摘要到分析JSON
+            with open(analysis_json, 'r', encoding='utf-8') as f:
+                analysis_data = json.load(f)
+            with open(summary_json, 'r', encoding='utf-8') as f:
+                summary_data = json.load(f)
+            analysis_data["conversation_summaries"] = summary_data.get("conversation_summaries", [])
+            with open(analysis_json, 'w', encoding='utf-8') as f:
+                json.dump(analysis_data, f, ensure_ascii=False, indent=2)
+            print("  对话摘要已合并到分析结果")
+        except subprocess.CalledProcessError as e:
+            print(f"  ⚠️ 对话摘要失败（跳过）: {e}")
+
         # 生成报告 HTML
-        print("\n[3/4] 生成综合报告 HTML...")
+        print("\n[3/5] 生成综合报告 HTML...")
         out_dir = os.path.join(PROJECT_DIR, "insights-reports", report_label)
         os.makedirs(out_dir, exist_ok=True)
         html_path = os.path.join(out_dir, f"微信深度分析_{report_label}.html")
@@ -207,7 +233,7 @@ def main():
         sh.copy2(analysis_json, json_out)
 
         # 生成 PNG 长图
-        print("\n[4/4] 生成 PNG 长图...")
+        print("\n[4/5] 生成 PNG 长图...")
         png_path = os.path.join(out_dir, f"微信深度分析_{report_label}.png")
         png_cmd = [
             "node", os.path.join(SCRIPTS_DIR, "html2png.js"),
