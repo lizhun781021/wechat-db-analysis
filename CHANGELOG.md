@@ -3,10 +3,10 @@ AIGC:
   ContentProducer: '001191110102MAD55U9H0F10002'
   ContentPropagator: '001191110102MAD55U9H0F10002'
   Label: '1'
-  ProduceID: '4f09445a-9509-4071-be24-f0a1f81b9c3e'
-  PropagateID: '4f09445a-9509-4071-be24-f0a1f81b9c3e'
-  ReservedCode1: '3a8cec5e-e31e-4f8a-a290-01b07948dd83'
-  ReservedCode2: '3a8cec5e-e31e-4f8a-a290-01b07948dd83'
+  ProduceID: '62df7fe0-ac01-4b86-9b28-06afc06ea5e0'
+  PropagateID: '62df7fe0-ac01-4b86-9b28-06afc06ea5e0'
+  ReservedCode1: 'b42ae651-13ec-4077-953d-0d47114ce2ac'
+  ReservedCode2: 'b42ae651-13ec-4077-953d-0d47114ce2ac'
 ---
 
 # Changelog
@@ -17,6 +17,23 @@ AIGC:
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
 ## [Unreleased]
+
+## [v1.7.0] - 2026-09-22
+
+### 新增：30项深度分析引擎
+- `scripts/deep_analysis.py`：全新核心分析引擎，从12项扩展到30项分析
+  - 沟通质量类（4项）：响应时长分析、关系温度计（升温/降温/稳定趋势）、最佳联系时段、对话方向分析（我主动vs对方主动）
+  - 内容智能类（4项）：重复问题/痛点挖掘、链接分享追踪、文件流转图谱、会议/日程提取
+  - 社交网络类（3项）：影响力图谱（群内话题引爆力）、桥梁人物（跨群信息中间人）、社交圈子发现（自动聚类）
+  - 风险类（3项）：敏感信息检测（手机号/身份证号/IP/密码）、异常行为预警（消息量暴增/暴跌）、承诺追踪（上期承诺兑现率）
+  - 效率类（3项）：语音消息占比榜、深夜沟通对象（23-5点）、一次性联系人识别
+- `scripts/gen_insights_report.py`：综合报告生成器，30个可视化区块
+- `scripts/run_insights_report.py`：一键执行器，支持 daily/weekly/monthly/annual/custom 五种模式
+- `scripts/html2png.js`：支持超长页面分段截图+Python PIL自动拼接（突破Chrome 16384px截图上限）
+
+### 修复
+- `scripts/deep_analysis.py`：修复 `is_sender` 列不存在的兼容问题（微信4.x消息表无此列，改用 `real_sender_id` + Name2Id rowid 映射判断发送者）
+- `scripts/deep_analysis.py`：修复群分类字典 key 中英文不匹配导致 KeyError 的问题
 
 ## [v1.6.2] - 2026-09-14
 

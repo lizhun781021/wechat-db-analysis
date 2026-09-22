@@ -44,12 +44,57 @@ async function main() {
     await page.goto(fileUrl, { waitUntil: 'networkidle' });
     // 等待所有字体和图片加载
     await page.evaluate(() => document.fonts.ready);
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 1000));
 
-    // 设置设备缩放比，保证高清
-    await page.setViewportSize({ width, height: Math.max(800, await page.evaluate(() => document.body.scrollHeight)) });
+    // Chrome 截图高度上限约 16384px，超出需分段截图拼接
+    const fullHeight = await page.evaluate(() => document.body.scrollHeight);
+    await page.setViewportSize({ width, height: Math.max(800, fullHeight) });
 
-    await page.screenshot({ path: outputPath, fullPage: true });
+    const MAX_SHOT_HEIGHT = 14000;
+    if (fullHeight <= MAX_SHOT_HEIGHT) {
+      await page.screenshot({ path: outputPath, fullPage: true });
+    } else {
+      // 分段截图保存为临时文件，再用 Python PIL 拼接
+      const fs = require('fs');
+      const os = require('os');
+      const { execSync } = require('child_process');
+      const tmpDir = path.join(os.tmpdir(), `wx_stitch_${Date.now()}`);
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const parts = Math.ceil(fullHeight / MAX_SHOT_HEIGHT);
+      const partPaths = [];
+      for (let i = 0; i < parts; i++) {
+        const partPath = path.join(tmpDir, `part_${String(i).padStart(3,'0')}.png`);
+        const clipHeight = Math.min(MAX_SHOT_HEIGHT, fullHeight - i * MAX_SHOT_HEIGHT);
+        await page.evaluate((y) => window.scrollTo(0, y), i * MAX_SHOT_HEIGHT);
+        await new Promise(r => setTimeout(r, 300));
+        await page.screenshot({
+          path: partPath,
+          clip: { x: 0, y: 0, width, height: clipHeight }
+        });
+        partPaths.push(partPath);
+      }
+      // 用 Python PIL 拼接
+      const pyScript = path.join(tmpDir, 'stitch.py');
+      fs.writeFileSync(pyScript, `
+from PIL import Image
+import sys, glob, os
+parts = sorted(glob.glob(os.path.join('${tmpDir}', 'part_*.png')))
+imgs = [Image.open(p) for p in parts]
+w = imgs[0].width
+h = sum(i.height for i in imgs)
+result = Image.new('RGB', (w, h))
+y = 0
+for img in imgs:
+    result.paste(img, (0, y))
+    y += img.height
+result.save('${outputPath.replace(/'/g, "\\'")}')
+`);
+      execSync(`python3 "${pyScript}"`, { env: { ...process.env } });
+      // 清理临时文件
+      for (const pp of partPaths) { try { fs.unlinkSync(pp); } catch(e){} }
+      try { fs.unlinkSync(pyScript); } catch(e){}
+      try { fs.rmdirSync(tmpDir); } catch(e){}
+    }
 
     const fs = require('fs');
     const sizeKB = (fs.statSync(outputPath).size / 1024).toFixed(1);
